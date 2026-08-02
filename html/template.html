@@ -1,0 +1,59 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>원료 저장설비 면적계산</title>
+<style>/*__CSS__*/</style>
+<div id="app">
+  <header class="hdr">
+    <div class="hdr-row">
+      <div>
+        <h1>원료 저장설비 면적계산</h1>
+        <p class="sub">Raw material Storage Designer</p>
+      </div>
+      <div class="hdr-tools">
+        <button id="save-json" class="tool-btn" type="button">시나리오 저장</button>
+        <button id="load-json" class="tool-btn" type="button">불러오기</button>
+        <button id="csv-btn" class="tool-btn" type="button">계산서 CSV</button>
+        <input id="load-file" type="file" accept=".json,application/json" hidden>
+        <button id="print-btn" class="tool-btn" type="button">인쇄 (A3)</button>
+        <button id="reset-btn" class="tool-btn" type="button">초기화</button>
+        <button id="theme" class="theme-btn" type="button" aria-label="테마 전환">◐</button>
+      </div>
+    </div>
+    <nav id="tabs" class="tabs"></nav>
+  </header>
+  <main id="main"></main>
+</div>
+<script>/*__THREE__*/</script>
+<script>/*__ORBIT__*/</script>
+<script>/*__CORE__*/</script>
+<script>/*__MATH__*/</script>
+<script>/*__DATA__*/</script>
+<script>/*__ENGINE_YARD__*/</script>
+<script>/*__ENGINE_SHED__*/</script>
+<script>/*__ENGINE_SILO__*/</script>
+<script>/*__ENGINE_MASTER__*/</script>
+<script>/*__DRAW2D__*/</script>
+<script>/*__BANDS__*/</script>
+<script>/*__EQUIP__*/</script>
+<script>/*__EQUIP3D__*/</script>
+<script>/*__DRAW3D__*/</script>
+<script>/*__CONTROLS__*/</script>
+<script>/*__DRAW2D_HELP__*/</script>
+<script>/*__DRAW2D_SHED__*/</script>
+<script>/*__DRAW2D_SILO__*/</script>
+<script>/*__DRAW2D_MASTER__*/</script>
+<script>/*__UI_YARD__*/</script>
+<script>/*__UI_COMPARE__*/</script>
+<script>/*__UI_FACILITY__*/</script>
+<script>/*__EXPORT__*/</script>
+<script>/*__SENSITIVITY__*/</script>
+<script>/*__UI__*/</script>
+<script>/*__APP__*/</script>
+<script>
+  document.getElementById('theme').addEventListener('click', function () {
+    var root = document.documentElement;
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    if (window.RSD && RSD.draw3d) RSD.draw3d.refreshTheme();
+  });
+</script>

@@ -1,0 +1,53 @@
+# 푸시하면 시험을 돌리고, 단일 HTML 을 만들어 GitHub Pages 로 올린다.
+#
+# 빌드 결과물(HTML)은 저장소에 넣지 않는다 — 소스와 산출물이 어긋나면
+# 어느 쪽이 맞는지 아무도 모르게 된다. 항상 여기서 새로 만든다.
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 시험이 깨지면 배포하지 않는다 — 틀린 계산이 URL 로 나가면 안 된다
+      - name: 시험
+        run: node tests/run-all.js
+
+      - name: 단일 HTML 조립
+        run: |
+          python3 assemble.py
+          mkdir -p _site
+          cp "원료저장설비-면적계산.html" _site/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

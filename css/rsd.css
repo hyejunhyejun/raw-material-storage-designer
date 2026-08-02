@@ -1,0 +1,525 @@
+/* 애플 톤 디자인 시스템 — 라이트/다크는 CSS 변수로 전환 */
+:root {
+  /* 중성색은 강조색 쪽으로 아주 살짝 차갑게 기울여 '고른' 회색이 되게 한다 */
+  --bg: #fafafc;
+  --surface: #ffffff;
+  --text: #1c1d21;
+  --text-dim: #6b6e76;
+  --line: #d5d7dd;
+  --accent: #0071e3;
+  --radius: 18px;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 도면 전용 — 지면·구조·치수 */
+  --dwg-apron: #f0efed;   /* 콘크리트 에이프런 */
+  --dwg-edge:  #9ca3ad;   /* 외형선 */
+  --dwg-road:  #dbdde0;   /* 차량 통행로 노면 */
+  --dwg-maint: rgba(124, 135, 148, .14);
+  --dwg-srband: rgba(0, 113, 227, .055);
+  --dwg-steel: #7c8794;   /* 설비 강재 */
+  --dwg-hatch: #b9bfc7;   /* 지반 해칭 */
+  --dwg-dim:   #8a9099;   /* 치수선 */
+}
+:root[data-theme="dark"] {
+  --bg: #0a0a0c;
+  --surface: #17181c;
+  --text: #f2f3f5;
+  --text-dim: #8a8d96;
+  --line: #34363c;
+  --accent: #2997ff;
+
+  --dwg-apron: #1a1b1f;
+  --dwg-edge:  #5a626c;
+  --dwg-road:  #26282d;
+  --dwg-maint: rgba(124, 135, 148, .16);
+  --dwg-srband: rgba(41, 151, 255, .08);
+  --dwg-steel: #6e7883;
+  --dwg-hatch: #3a4048;
+  --dwg-dim:   #6e7883;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Segoe UI", sans-serif;
+  font-feature-settings: "tnum";
+  line-height: 1.5;
+}
+.hdr { padding: 64px 40px 32px; }
+.hdr h1 { margin: 0; font-size: 40px; font-weight: 600; letter-spacing: -0.02em; }
+.hdr .sub { margin: 4px 0 0; color: var(--text-dim); font-size: 15px; }
+/* ---------- 헤더 · 탭 ---------- */
+.hdr { padding: 56px 40px 0; }
+.hdr-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.theme-btn {
+  background: none; border: 1px solid var(--line); color: var(--text-dim);
+  border-radius: 999px; width: 40px; height: 40px; font-size: 18px; cursor: pointer;
+  transition: background .3s var(--ease), color .3s var(--ease);
+}
+.theme-btn:hover { background: var(--surface); color: var(--text); }
+.tabs { display: flex; gap: 4px; margin-top: 36px; border-bottom: 1px solid var(--line); }
+.tab {
+  background: none; border: none; padding: 12px 18px; font-size: 15px;
+  color: var(--text-dim); cursor: pointer; border-bottom: 2px solid transparent;
+  transition: color .25s var(--ease), border-color .25s var(--ease);
+  font-family: inherit;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+#main { padding: 40px; display: flex; flex-direction: column; gap: 24px; }
+
+/* ---------- 입력 ---------- */
+.panel {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 28px 32px; max-width: 1100px;
+}
+.panel h3, .card h3 {
+  margin: 0 0 20px; font-size: 20px; font-weight: 600; letter-spacing: -0.01em;
+  display: flex; align-items: center; gap: 10px;
+}
+.swatch {
+  width: 13px; height: 13px; border-radius: 4px; flex: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .18);
+}
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 18px 20px; }
+.fld { display: flex; flex-direction: column; gap: 6px; }
+.fld-label { font-size: 12px; color: var(--text-dim); }
+.fld-input { display: flex; align-items: center; gap: 8px; }
+.fld-input input, .fld-input select {
+  flex: 1; min-width: 0; padding: 9px 11px; font-size: 15px;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--line); border-radius: 10px;
+  font-family: inherit; font-variant-numeric: tabular-nums;
+  transition: border-color .2s var(--ease);
+}
+.fld-input input:focus, .fld-input select:focus { outline: none; border-color: var(--accent); }
+.fld-unit { font-size: 12px; color: var(--text-dim); min-width: 30px; }
+.fld-hint { font-size: 11px; color: var(--text-dim); }
+
+/* ---------- 수치 타일 ---------- */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin: 24px 0; }
+.tile { padding: 18px 20px; background: var(--bg); border-radius: 14px; }
+.tile-label { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+.tile-value { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.tile-unit { font-size: 14px; font-weight: 400; color: var(--text-dim); margin-left: 5px; }
+.tile-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+/* ---------- 계산근거 펼침 ---------- */
+.result-table { width: 100%; border-collapse: collapse; font-size: 14px; max-width: 640px; }
+.rt-label { text-align: left; font-weight: 400; color: var(--text-dim); padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); width: 45%; }
+.rt-val { padding: 9px 0; border-bottom: 1px solid var(--line); }
+.trace summary {
+  cursor: pointer; list-style: none; text-align: right;
+  font-variant-numeric: tabular-nums; transition: color .2s var(--ease);
+}
+.trace summary::-webkit-details-marker { display: none; }
+.trace summary:hover { color: var(--accent); }
+.trace-val { font-weight: 500; }
+.trace-unit { font-size: 12px; color: var(--text-dim); margin-left: 4px; }
+.trace-body { margin-top: 8px; padding: 12px 14px; background: var(--bg); border-radius: 10px; font-size: 12px; }
+.trace-formula { color: var(--text); }
+.trace-subst { color: var(--text-dim); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.trace-src { color: var(--text-dim); margin-top: 8px; font-size: 11px; opacity: .8; }
+.sheet > summary { cursor: pointer; color: var(--accent); font-size: 14px; margin-top: 12px; }
+
+/* ---------- 경고 ---------- */
+.warn { background: rgba(255, 159, 10, .12); border-radius: 12px; padding: 14px 18px; margin: 16px 0; font-size: 13px; }
+.warn ul { margin: 0; padding-left: 18px; }
+.warn li + li { margin-top: 6px; }
+.empty { color: var(--text-dim); font-size: 14px; }
+
+/* ---------- 도면 ----------
+   원료 색과 면 명암은 인라인 fill 로 들어온다 (원료 정체성이므로 테마와 무관).
+   지면·구조·치수 등 도면 요소만 테마 토큰을 따른다. */
+.dwg-wrap { margin: 32px 0; overflow-x: auto; }
+.dwg-wrap h4 {
+  margin: 0 0 12px; font-size: 11px; font-weight: 600; color: var(--text-dim);
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.dwg { width: 100%; max-width: 1100px; height: auto; display: block; }
+.dwg text { font-family: inherit; font-variant-numeric: tabular-nums; }
+
+/* 지면 · 부대 */
+.apron { fill: var(--dwg-apron); }
+.yard-outline { fill: none; stroke: var(--dwg-edge); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.road { fill: var(--dwg-road); }
+.maint { fill: var(--dwg-maint); }
+.row-tag { fill: var(--text-dim); opacity: .75; dominant-baseline: middle; font-weight: 600; }
+
+/* 스태커 · 리클레이머 · 벨트 컨베이어 */
+.sr-band { fill: var(--dwg-srband); }
+.sr-rail { stroke: var(--dwg-steel); stroke-width: 1; opacity: .55; vector-effect: non-scaling-stroke; }
+.bc-line { stroke: var(--accent); stroke-width: 1.6; opacity: .45; vector-effect: non-scaling-stroke; stroke-dasharray: 7 5; }
+.sr-machine { fill: var(--dwg-steel); opacity: .9; }
+.sr-boom { stroke: var(--dwg-steel); stroke-width: 1.4; opacity: .55; vector-effect: non-scaling-stroke; }
+
+/* 파일 */
+.pile.invalid { opacity: .45; }
+.crest { stroke-width: 1.2; opacity: .8; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.invalid-note { fill: #c9252d; font-weight: 700; letter-spacing: .02em; }
+:root[data-theme="dark"] .invalid-note { fill: #ff6961; }
+
+/* 단면 */
+.pile-edge { fill: none; stroke: rgba(0,0,0,.28); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.layer { stroke: rgba(255,255,255,.16); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.crest-v { stroke-width: 1.1; opacity: .5; vector-effect: non-scaling-stroke; }
+.ground { stroke: var(--dwg-edge); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.hatch { stroke: var(--dwg-hatch); stroke-width: .8; vector-effect: non-scaling-stroke; }
+.angle-arc { fill: none; stroke: var(--dwg-edge); stroke-width: 1.1; vector-effect: non-scaling-stroke; }
+.ang, .gl { fill: var(--text-dim); dominant-baseline: middle; }
+
+/* 치수 */
+.dim-line { stroke: var(--dwg-dim); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.dim-ext { stroke: var(--dwg-dim); stroke-width: .8; opacity: .55; vector-effect: non-scaling-stroke; }
+.dim-arrow { fill: var(--dwg-dim); }
+.dim-text { fill: var(--text-dim); }
+
+/* ---------- Shed 도면 ---------- */
+.shed-roof, .shed-wall { fill: none; stroke: var(--dwg-edge); stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.shed-cwall { fill: var(--dwg-steel); opacity: .55; }
+.shed-spr line { stroke: var(--dwg-steel); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.shed-spr .spr-boom { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 3; }
+.shed-tripper rect { fill: var(--dwg-steel); }
+.shed-tripper line { stroke: var(--dwg-steel); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.shed-bc { fill: var(--accent); opacity: .5; }
+.area-tag { fill: #fff; font-weight: 600; paint-order: stroke; stroke: rgba(0,0,0,.45); stroke-width: 2px; }
+.shed-outline { fill: none; stroke: var(--dwg-edge); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+/* Shed 단면 주기 — 부재명 · 각도 · 원료 흐름 · 범례 */
+.part-note polyline { fill: none; stroke: var(--dwg-dim); stroke-width: 1.1; opacity: .7; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; }
+.part-note circle { fill: var(--dwg-dim); }
+.part-note text { fill: var(--text-dim); font-weight: 500; dominant-baseline: middle; }
+.flow line { stroke: var(--accent); stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+.flow polygon { fill: var(--accent); }
+.flow-tag { fill: var(--accent); font-weight: 700; dominant-baseline: middle; }
+.ang-g .ang-arc { fill: none; stroke: var(--accent); stroke-width: 1.8; vector-effect: non-scaling-stroke; }
+.ang-g text { fill: var(--accent); font-weight: 600; dominant-baseline: middle; text-anchor: middle; }
+.gl-tag { fill: var(--text-dim); font-weight: 600; }
+.ore-crest { stroke-width: 1.2; vector-effect: non-scaling-stroke; opacity: .8; }
+.legend-h { fill: var(--text); font-weight: 700; dominant-baseline: middle; }
+.legend-t { fill: var(--text-dim); font-weight: 500; dominant-baseline: middle; }
+.legend-sw { stroke: var(--dwg-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.maint-zone { fill: var(--dwg-maint); }
+.zone-tag { fill: var(--text-dim); dominant-baseline: middle; }
+.partition { fill: var(--dwg-steel); opacity: .75; }
+.cell { stroke: var(--dwg-edge); stroke-width: .8; vector-effect: non-scaling-stroke; }
+.cell-no { fill: #fff; font-weight: 700; paint-order: stroke; stroke: rgba(0,0,0,.4); stroke-width: 2px; }
+.cell-cap, .cell-len { fill: #fff; opacity: .92; paint-order: stroke; stroke: rgba(0,0,0,.35); stroke-width: 1.6px; }
+.shed-gallery { fill: var(--accent); opacity: .16; }
+.gallery-line { stroke: var(--accent); stroke-width: 1.4; opacity: .6; stroke-dasharray: 7 5; vector-effect: non-scaling-stroke; }
+
+/* ---------- Silo 도면 ---------- */
+.silo-band { fill: var(--dwg-apron); stroke: var(--dwg-edge); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.silo-corridor { fill: var(--accent); opacity: .12; }
+.silo { stroke: var(--dwg-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.silo-inner { fill: none; stroke: rgba(255,255,255,.35); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.silo-no { fill: #fff; font-weight: 700; paint-order: stroke; stroke: rgba(0,0,0,.4); stroke-width: 2px; }
+.silo-axis { stroke: var(--dwg-dim); stroke-width: 1; opacity: .5; stroke-dasharray: 12 4 3 4; vector-effect: non-scaling-stroke; }
+.silo-body, .silo-roof { stroke: var(--dwg-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.silo-rdm { fill: var(--dwg-steel); opacity: .8; }
+.silo-gallery, .silo-bc { fill: var(--dwg-steel); opacity: .55; }
+
+/* ---------- 마스터플랜 ---------- */
+.band-edge { fill: none; stroke: var(--dwg-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.band-label { fill: var(--text); opacity: .92; paint-order: stroke; stroke: rgba(255,255,255,.5); stroke-width: 2.4px; }
+:root[data-theme="dark"] .band-label { stroke: rgba(0,0,0,.5); }
+.band-grip { fill: var(--accent); opacity: .3; cursor: ns-resize; }
+.band-grip:hover { opacity: .7; }
+body.dragging-band { user-select: none; cursor: ns-resize; }
+
+/* ---------- 타입 비교 ---------- */
+.cmp-picker { margin-bottom: 20px; }
+.cmp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+.cmp-card { background: var(--bg); border-radius: 14px; padding: 20px; border: 1px solid transparent; }
+.cmp-card.cmp-best { border-color: var(--accent); }
+.cmp-card.cmp-na { opacity: .5; }
+.cmp-head { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.cmp-tag { font-size: 10px; font-weight: 600; color: #fff; background: var(--accent); padding: 3px 8px; border-radius: 999px; }
+.cmp-area { font-size: 28px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.cmp-bar { height: 6px; background: var(--line); border-radius: 999px; margin: 12px 0 16px; overflow: hidden; }
+.cmp-bar span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.cmp-list { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; font-size: 12px; }
+.cmp-list dt { color: var(--text-dim); }
+.cmp-list dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.cmp-note { font-size: 12px; color: var(--text-dim); margin: 0; }
+
+/* ---------- 3D 부지 ---------- */
+.card-3d { padding: 20px; }
+.dwg3d-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.view-btns { display: flex; gap: 4px; }
+.view-btn {
+  background: var(--bg); border: 1px solid var(--line); color: var(--text-dim);
+  padding: 7px 14px; font-size: 13px; border-radius: 999px; cursor: pointer;
+  font-family: inherit; transition: all .2s var(--ease);
+}
+.view-btn:hover { color: var(--text); }
+.view-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-dim); }
+.lg {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 5px 10px 5px 7px; border-radius: 999px; border: 1px solid transparent;
+  transition: background .2s var(--ease), border-color .2s var(--ease), opacity .2s var(--ease);
+}
+.lg:hover { background: var(--bg); border-color: var(--line); }
+.lg input { accent-color: var(--accent); margin: 0; cursor: pointer; }
+.lg:has(input:not(:checked)) { opacity: .42; }
+.lg-type { font-size: 10px; opacity: .7; letter-spacing: .04em; }
+.play-btn { min-width: 78px; }
+.dwg3d {
+  width: 100%; height: 62vh; min-height: 420px;
+  border-radius: 14px; overflow: hidden; background: var(--dwg-apron);
+}
+.dwg3d canvas { display: block; width: 100% !important; height: 100% !important; }
+.dwg3d-hint { margin: 12px 0 0; font-size: 12px; }
+.dwg3d-fail { padding: 40px; text-align: center; color: var(--text-dim); font-size: 14px; }
+
+/* ---------- 드래그 ---------- */
+.drag-handle { fill: var(--accent); opacity: .22; cursor: ew-resize; transition: opacity .2s var(--ease); }
+.drag-handle:hover { opacity: .55; }
+.drag-hint { fill: var(--accent); opacity: .55; dominant-baseline: middle; }
+body.dragging { user-select: none; cursor: ew-resize; }
+body.dragging .dwg { pointer-events: none; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 32px;
+  max-width: 960px;
+}
+.card h2 { margin: 12px 0 4px; font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
+.dim { color: var(--text-dim); font-size: 14px; margin: 0 0 24px; }
+.badge {
+  display: inline-block; padding: 5px 12px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.01em;
+}
+.badge.ok { background: rgba(48, 209, 88, 0.15); color: #1a7f37; }
+.badge.ng { background: rgba(255, 69, 58, 0.15); color: #c9252d; }
+:root[data-theme="dark"] .badge.ok { color: #30d158; }
+:root[data-theme="dark"] .badge.ng { color: #ff453a; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 11px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+th { color: var(--text-dim); font-weight: 500; font-size: 12px; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.ok { color: #1a7f37; font-weight: 500; }
+td.ng { color: #c9252d; font-weight: 500; }
+:root[data-theme="dark"] td.ok { color: #30d158; }
+:root[data-theme="dark"] td.ng { color: #ff453a; }
+
+/* ---------- 검토 대상 원료 선택 ---------- */
+.use-toggle { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
+.use-toggle input { accent-color: var(--accent); margin: 0; cursor: pointer; width: 16px; height: 16px; }
+.card-off { opacity: .55; }
+.card-off .fields { opacity: .8; }
+.off-tag {
+  font-size: 10px; font-weight: 600; color: var(--text-dim);
+  background: var(--bg); border: 1px solid var(--line);
+  padding: 3px 9px; border-radius: 999px; margin-left: auto;
+}
+
+/* ---------- Silo 도면 (품질 개선) ---------- */
+.silo-wall { fill: none; stroke: var(--dwg-edge); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.silo-outlet { fill: var(--dwg-steel); opacity: .85; }
+.silo-corridor-edge { fill: none; stroke: var(--dwg-edge); stroke-width: .9; opacity: .6; vector-effect: non-scaling-stroke; }
+.silo-hopper { fill: var(--dwg-steel); opacity: .55; stroke: var(--dwg-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.silo-skirt { fill: var(--dwg-steel); opacity: .3; }
+.silo-vent { fill: var(--dwg-steel); opacity: .8; }
+.silo-stair { stroke: var(--dwg-steel); stroke-width: 1.1; opacity: .55; vector-effect: non-scaling-stroke; stroke-dasharray: 3 2; }
+.truss { stroke: var(--dwg-steel); stroke-width: .9; opacity: .5; vector-effect: non-scaling-stroke; }
+.silo-tripper rect, .silo-tripper polygon { fill: var(--accent); opacity: .75; }
+.lvl { fill: var(--text-dim); dominant-baseline: middle; font-weight: 500; }
+.more-tag { fill: var(--text-dim); dominant-baseline: middle; }
+.sb-a { fill: var(--dwg-edge); }
+.sb-b { fill: none; stroke: var(--dwg-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+
+/* ---------- 마스터플랜 (품질 개선) ---------- */
+.mp-pile { stroke: rgba(0,0,0,.22); stroke-width: .6; vector-effect: non-scaling-stroke; }
+.mp-silo { fill: var(--dwg-apron); stroke: var(--dwg-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.mp-cell { fill: rgba(255,255,255,.22); stroke: var(--dwg-edge); stroke-width: .7; vector-effect: non-scaling-stroke; }
+.mp-rail { stroke: var(--dwg-steel); stroke-width: 1; opacity: .6; vector-effect: non-scaling-stroke; }
+.mp-bc { stroke: var(--accent); stroke-width: 1.6; opacity: .55; stroke-dasharray: 8 5; vector-effect: non-scaling-stroke; }
+.mp-sr { fill: var(--dwg-steel); opacity: .95; }
+.mp-boom { stroke: var(--dwg-steel); stroke-width: 1.6; opacity: .6; vector-effect: non-scaling-stroke; }
+.leader { fill: none; stroke: var(--dwg-dim); stroke-width: .9; opacity: .7; vector-effect: non-scaling-stroke; }
+.thin-label { fill: var(--text-dim); dominant-baseline: middle; }
+.north circle { fill: none; stroke: var(--dwg-dim); stroke-width: 1.1; vector-effect: non-scaling-stroke; }
+.north polygon { fill: var(--dwg-dim); }
+.north text { fill: var(--text-dim); font-weight: 700; }
+.lvl-line { stroke: var(--dwg-dim); stroke-width: 1; opacity: .7; vector-effect: non-scaling-stroke; }
+.leader-dot { fill: var(--dwg-dim); opacity: .8; }
+.band-tag { fill: var(--text); dominant-baseline: middle; font-weight: 500; }
+.band-tag.road-tag { fill: var(--text-dim); font-weight: 400; }
+.band-sub { fill: var(--text-dim); dominant-baseline: middle; font-weight: 400; }
+/* 야드 도면의 통행로 표기 — 노면 위에 직접 얹으므로 자체 스타일이 필요하다 */
+text.road-tag { fill: var(--text-dim); font-weight: 500; dominant-baseline: middle; }
+/* 원료별 파일 제원 소제목 */
+.fields-title { grid-column: 1 / -1; margin: 0; font-size: 13px; font-weight: 600;
+  color: var(--text-dim); letter-spacing: .02em; }
+
+/* ---------- 자동 산정 필드 ---------- */
+.fld-off .fld-label { opacity: .55; }
+.fld-off .fld-input input { background: var(--line); opacity: .6; cursor: not-allowed; }
+.fld-off .fld-hint { color: var(--accent); opacity: .85; }
+
+
+/* ---------- 타입 비교: 면적당 저장량 · 부지 실루엣 ---------- */
+.cmp-dens { font-size: 20px; font-weight: 600; margin: 14px 0 4px; font-variant-numeric: tabular-nums; }
+.cmp-dens-lbl { display: block; font-size: 11px; font-weight: 400; color: var(--text-dim); margin-top: 2px; }
+.cmp-fp { width: 100%; height: 74px; display: block; margin: 12px 0 4px; }
+.cmp-fp-max { fill: none; stroke: var(--line); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-dasharray: 6 4; }
+.cmp-fp-me { fill: var(--accent); fill-opacity: .28; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.cmp-fp-cap { font-size: 11px; color: var(--text-dim); margin-bottom: 10px; font-variant-numeric: tabular-nums; }
+.silo-base { fill: var(--dwg-steel); opacity: .38; stroke: var(--dwg-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.silo-rib { stroke: rgba(0,0,0,.22); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.arr-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+.arr-table th { color: var(--text-dim); font-weight: 500; font-size: 11px; padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+.arr-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.arr-table tr.arr-cur { background: rgba(0,113,227,.06); }
+.arr-pick { background: var(--bg); border: 1px solid var(--line); color: var(--text); padding: 4px 12px; border-radius: 999px; cursor: pointer; font-family: inherit; font-size: 12px; }
+.arr-pick:hover { border-color: var(--accent); color: var(--accent); }
+.arr-now { font-size: 10px; color: var(--accent); margin-left: 6px; font-weight: 600; }
+.arr > summary { margin-bottom: 4px; }
+.tp-car, .tp-house { fill: var(--dwg-steel); }
+.tp-belt { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.tp-pulley { fill: var(--accent); }
+.tp-hood { fill: var(--dwg-steel); opacity: .8; }
+.tp-wheel { fill: var(--dwg-edge); }
+/* Shed 설비 심볼 */
+.spr-leg { fill: var(--dwg-steel); opacity: .92; }
+.spr-blade { fill: var(--accent); opacity: .8; }
+.spr-cab { fill: #f2c230; opacity: .9; }
+.bc-tag, .eq-tag { fill: var(--text-dim); dominant-baseline: middle; font-weight: 500; }
+.shed-tripper-plan rect { fill: var(--accent); opacity: .8; }
+.shed-tripper-plan line { stroke: var(--accent); stroke-width: 1.6; opacity: .6; vector-effect: non-scaling-stroke; stroke-dasharray: 4 3; }
+.shed-spr-plan rect { fill: var(--dwg-steel); opacity: .55; }
+.shed-spr-plan line { stroke: var(--dwg-steel); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.eq-tag { fill: #fff; paint-order: stroke; stroke: rgba(0,0,0,.45); stroke-width: 2px; font-weight: 700; }
+
+/* ---------- 파라미터 도해 (좌표계 통일: viewBox 폭 1000) ---------- */
+.help { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 16px; }
+.help > summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+.help-body { display: flex; flex-direction: column; gap: 26px; margin-top: 18px; }
+.hlp { width: 100%; max-width: 900px; height: auto; display: block; }
+.hlp text { font-family: inherit; }
+/* 도형 구역과 범례를 가르는 세로선 — 두 구역이 섞이지 않게 */
+.hlp-split { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+
+/* --- 도형 --- */
+.hlp-yard { fill: var(--dwg-apron); stroke: var(--dwg-edge); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.hlp-road { fill: var(--dwg-road); }
+.hlp-maint { fill: var(--dwg-steel); opacity: .26; }
+.hlp-pile { fill: var(--dwg-steel); opacity: .72; }
+.hlp-crest { stroke: #fff; stroke-width: 1.4; opacity: .5; vector-effect: non-scaling-stroke; }
+.hlp-ground { stroke: var(--dwg-edge); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.hlp-roof { fill: none; stroke: var(--dwg-edge); stroke-width: 1.8; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.hlp-cwall { fill: var(--dwg-steel); opacity: .92; }
+.hlp-a1 { fill: var(--dwg-steel); opacity: .38; }
+.hlp-a2 { fill: var(--dwg-steel); opacity: .62; }
+.hlp-a3 { fill: var(--dwg-steel); opacity: .84; }
+.hlp-cell { fill: var(--dwg-steel); opacity: .44; }
+.hlp-gallery { fill: var(--accent); opacity: .42; }
+.hlp-corr { fill: var(--accent); opacity: .28; }
+/* Silo 는 도해 중 가장 흐리다는 지적이 반복됐다 — 채도·선굵기를 가장 높게 잡는다 */
+.hlp-silo { fill: var(--dwg-steel); opacity: .8; stroke: var(--dwg-edge); stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+.hlp-siloc { fill: var(--accent); }
+.hlp-gap { fill: var(--accent); opacity: .34; }
+.hlp-axis { stroke: var(--dwg-dim); stroke-width: 1.2; opacity: .6; stroke-dasharray: 14 5 3 5; vector-effect: non-scaling-stroke; }
+.hlp-arc { fill: none; stroke: var(--accent); stroke-width: 2.4; vector-effect: non-scaling-stroke; }
+
+/* --- 치수 --- */
+.hlp-dim line { stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.hlp-dim .hlp-ext { stroke: var(--dwg-dim); stroke-width: 1; opacity: .5; stroke-dasharray: 4 3; }
+.hlp-dim text { fill: var(--accent); font-weight: 700; }
+.hlp-arrow { fill: var(--accent); }
+
+/* --- 기호 배지 (도형 위에 직접 얹는다) --- */
+.hlp-badge circle { fill: var(--accent); stroke: var(--surface); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.hlp-badge text { fill: #fff; font-weight: 700; }
+
+/* --- 범례 --- */
+.hlp-lsym { fill: none; stroke: var(--accent); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.hlp-lsymt { fill: var(--accent); font-weight: 700; }
+.hlp-lname { fill: var(--text); font-weight: 600; }
+.hlp-lnote { fill: var(--text-dim); font-weight: 400; }
+
+/* Silo 상부 공급 라인 */
+.silo-feed { stroke: var(--accent); stroke-width: 2.2; opacity: .55; stroke-dasharray: 10 6; vector-effect: non-scaling-stroke; }
+
+/* 타입 비교 — 오픈야드 대비 비율 */
+.cmp-vs { font-size: 12px; color: var(--accent); font-weight: 600; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.cmp-vs.cmp-vs-base { color: var(--text-dim); font-weight: 400; }
+
+/* ---------- 머리말 도구 ---------- */
+.hdr-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.tool-btn {
+  background: none; border: 1px solid var(--line); border-radius: 8px;
+  color: var(--text-dim); font: inherit; font-size: 12px; font-weight: 500;
+  padding: 6px 11px; cursor: pointer; white-space: nowrap;
+}
+.tool-btn:hover { background: var(--surface); color: var(--text); border-color: var(--text-dim); }
+
+/* ---------- 도면 내보내기 막대 ---------- */
+.dwg-wrap { position: relative; }
+.dwg-tools { display: flex; gap: 4px; justify-content: flex-end; margin-bottom: 4px; }
+.mini-btn {
+  background: none; border: 1px solid var(--line); border-radius: 6px;
+  color: var(--text-dim); font: inherit; font-size: 11px; font-weight: 500;
+  padding: 3px 9px; cursor: pointer;
+}
+.mini-btn:hover { background: var(--surface); color: var(--accent); border-color: var(--accent); }
+
+/* ---------- 민감도 그래프 ---------- */
+.chart { width: 100%; height: auto; display: block; }
+.ch-grid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ch-line { fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.ch-dot { fill: var(--accent); }
+.ch-dot.base { fill: var(--text); }
+.ch-base { stroke: var(--text-dim); stroke-width: 1; stroke-dasharray: 5 4; opacity: .6; vector-effect: non-scaling-stroke; }
+.ch-ax { fill: var(--text-dim); dominant-baseline: middle; font-variant-numeric: tabular-nums; }
+.ch-unit { fill: var(--text-dim); font-weight: 600; }
+.ch-title { fill: var(--text); font-weight: 600; }
+
+/* ---------- 시나리오 A/B ---------- */
+.slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 14px 0 20px; }
+.slot { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.slot h4 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+.slot h4 .dim { font-size: 11px; font-weight: 400; }
+.slot.empty-slot { border-style: dashed; }
+.slot-list { list-style: none; margin: 8px 0 12px; padding: 0; font-size: 12px; color: var(--text-dim); }
+.slot-list li { padding: 2px 0; }
+.slot .view-btn { margin-right: 4px; }
+.delta { font-variant-numeric: tabular-nums; font-weight: 600; }
+.delta.up { color: #D0342C; }
+.delta.down { color: #1B8A5A; }
+.delta.flat { color: var(--text-dim); font-weight: 400; }
+.base-row { background: var(--surface); }
+.base-row .tag { font-size: 10px; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; }
+.total-row { font-weight: 700; border-top: 2px solid var(--line); }
+
+/* ---------- 인쇄 (A3 가로) ---------- */
+@media print {
+  @page { size: A3 landscape; margin: 12mm; }
+  :root, :root[data-theme="dark"] {
+    --bg: #fff; --surface: #f5f5f7; --text: #1d1d1f; --text-dim: #4a4a4f; --line: #d2d2d7;
+  }
+  body { background: #fff; }
+  /* 화면 조작용 요소는 종이에 남기지 않는다 */
+  .hdr-tools, .tabs, .dwg-tools, .drag-handle, .drag-hint, .view-btns, .band-grip { display: none !important; }
+  /* 접힌 계산근거·계산서를 전부 펼쳐 근거가 종이에 남게 한다 */
+  details { display: block !important; }
+  details > summary { list-style: none; font-weight: 600; }
+  details > *:not(summary) { display: revert !important; }
+  .card, .panel { break-inside: avoid; border-color: #d2d2d7; box-shadow: none; }
+  .dwg-wrap { break-inside: avoid; }
+  .card-3d, .dwg3d, .dwg3d-bar, .dwg3d-hint { display: none !important; }
+  a[href]:after { content: ""; }
+}
+
+/* ---------- Shed 셀별 길이 직접 입력 ---------- */
+.cell-editor { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+.cell-editor h4 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+.cell-bay { margin-top: 16px; }
+.cell-short { color: #D0342C; font-size: 13px; font-weight: 600; }
