@@ -78,13 +78,28 @@
   }
 
   // Shed 건물 (PEB 박공지붕)
+  //
+  // 지붕만 반투명으로 덮어 위에서 안이 들여다보이게 한다.
+  // 골조(기둥·서까래)를 세워 봤더니 대각선이 잔뜩 생겨 형상만 어지러웠다 —
+  // 예전 형상 그대로 두고 지붕 재질만 바꾸는 편이 훨씬 깨끗하다.
   function makeShed(len, width, height, wallMat, roofMat) {
     const g = new THREE.Group();
     const wallH = height * 0.49;
-    const body = new THREE.Mesh(new THREE.BoxGeometry(len, wallH, width), wallMat);
-    body.position.y = wallH / 2;
-    body.castShadow = true; body.receiveShadow = true;
-    g.add(body);
+
+    // 벽체는 **속이 빈 껍데기**로 세운다.
+    // 통짜 박스로 만들면 윗면이 생겨서, 지붕을 아무리 투명하게 해도
+    // 그 윗면이 안을 가려 버린다. 겉모습은 통짜와 똑같다.
+    const wall = function (w, x, z, rotY) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, wallH), wallMat);
+      m.position.set(x, wallH / 2, z);
+      m.rotation.y = rotY;
+      m.castShadow = true; m.receiveShadow = true;
+      g.add(m);
+    };
+    wall(len, 0, -width / 2, 0);            // 측벽 2장
+    wall(len, 0, width / 2, Math.PI);
+    wall(width, -len / 2, 0, -Math.PI / 2); // 양단벽 2장
+    wall(width, len / 2, 0, Math.PI / 2);
 
     // 박공지붕 — 삼각 단면을 길이방향으로 압출
     const roofH = height - wallH;
@@ -323,16 +338,21 @@
         });
 
       } else if (b.kind === 'shed') {
-        // 건물은 **속이 보이게** 세운다 — 불투명하게 덮으면 안에서 무슨 일이
-        // 일어나는지 하나도 안 보인다. 골조는 그대로, 외장만 반투명.
+        // 형상은 예전 그대로 — 벽체는 불투명, **지붕만 반투명**으로 덮어
+        // 위에서 내려다보면 안의 원료 더미·Tripper·SPR 이 보이게 한다.
         const H = state.shed.totalHeight;
         const wallTop = H * 0.49;
-        const shell = E3.makeShedShell({
-          len: b.length, width: b.width, height: H, mat: steelMat,
-          cladColor: col(0xd6d8db), roofColor: col(SHED_RF)
+        const wallMat = new THREE.MeshStandardMaterial({
+          color: col(0xd6d8db), roughness: .8, side: THREE.DoubleSide
         });
-        shell.position.set(0, 0, zc);
-        bg.add(shell);
+        const glassRoof = new THREE.MeshStandardMaterial({
+          color: col(SHED_RF), roughness: .45, metalness: .25,
+          transparent: true, opacity: 0.28, side: THREE.DoubleSide,
+          depthWrite: false      // 이걸 켜 두면 지붕이 안쪽 물체를 가려 버린다
+        });
+        const shed = makeShed(b.length, b.width, H, wallMat, glassRoof);
+        shed.position.set(0, 0, zc);
+        bg.add(shed);
 
         const bays = Math.max(1, state.shed.bays);
         const bayW = b.width / bays;

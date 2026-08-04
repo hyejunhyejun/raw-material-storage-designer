@@ -360,70 +360,6 @@
     return g;
   }
 
-  // ---------- Shed 건물 껍데기 (속이 보이는 형태) ----------
-  //
-  // 벽·지붕을 불투명하게 세우면 안에서 무슨 일이 일어나는지 하나도 안 보인다.
-  // 강재 골조는 그대로 세우고 외장만 반투명으로 덮어, 밖에서 형상을 알아보면서
-  // 안의 원료 더미·Tripper·SPR 이 함께 보이게 한다.
-  function makeShedShell(o) {
-    const g = new THREE.Group();
-    const len = o.len, w = o.width, h = o.height;
-    const wallH = h * 0.49;            // 처마 높이
-    const mat = o.mat;
-
-    // 반투명 외장 — 앞뒤 벽은 시야를 가리므로 더 투명하게
-    const clad = new THREE.MeshStandardMaterial({
-      color: o.cladColor, roughness: .7, metalness: .1,
-      transparent: true, opacity: 0.18, side: THREE.DoubleSide,
-      depthWrite: false
-    });
-    const roofMat = new THREE.MeshStandardMaterial({
-      color: o.roofColor, roughness: .5, metalness: .3,
-      transparent: true, opacity: 0.26, side: THREE.DoubleSide,
-      depthWrite: false
-    });
-
-    // 측벽 2장
-    [-w / 2, w / 2].forEach(function (z) {
-      const p = new THREE.Mesh(new THREE.PlaneGeometry(len, wallH), clad);
-      p.position.set(0, wallH / 2, z);
-      g.add(p);
-    });
-    // 박공지붕 2장
-    const roofH = h - wallH;
-    const slope = Math.sqrt((w / 2) * (w / 2) + roofH * roofH);
-    [-1, 1].forEach(function (sg) {
-      const p = new THREE.Mesh(new THREE.PlaneGeometry(len, slope), roofMat);
-      p.rotation.x = sg * Math.atan2(roofH, w / 2);
-      p.position.set(0, wallH + roofH / 2, sg * w / 4);
-      g.add(p);
-    });
-
-    // 강재 골조 — 이게 있어야 '건물'로 읽힌다
-    const bays = Math.max(2, Math.round(len / 30));
-    for (let i = 0; i <= bays; i++) {
-      const x = -len / 2 + (len / bays) * i;
-      [-w / 2, w / 2].forEach(function (z) {
-        const c = shade(box(1.1, wallH, 1.1, mat));
-        c.position.set(x, wallH / 2, z);
-        g.add(c);
-      });
-      // 서까래 — 처마에서 용마루로
-      [-1, 1].forEach(function (sg) {
-        const r = shade(box(0.9, 0.9, slope, mat));
-        r.position.set(x, wallH + roofH / 2, sg * w / 4);
-        r.rotation.x = -sg * Math.atan2(roofH, w / 2) + Math.PI / 2;
-        g.add(r);
-      });
-    }
-    // 용마루
-    const ridge = shade(box(len, 0.9, 0.9, mat));
-    ridge.position.y = h;
-    g.add(ridge);
-
-    return g;
-  }
-
   // ---------- Shed 셀 1개의 원료 더미 ----------
   //
   // 단면은 비대칭이다 — 중앙 옹벽에 기대어 능선까지 올라갔다가 개방측으로 흘러내린다.
@@ -517,7 +453,7 @@
     use: use, col: col,
     makeYardMachine: makeYardMachine, makeTripper: makeTripper, makeSPR: makeSPR,
     makeSiloDischarge: makeSiloDischarge, makeGallery: makeGallery, makeFlow: makeFlow,
-    makeShedShell: makeShedShell, makeShedPile: makeShedPile,
+    makeShedPile: makeShedPile,
     collectAnimated: collectAnimated, stepAnimation: stepAnimation
   };
   global.RSD = global.RSD || {};

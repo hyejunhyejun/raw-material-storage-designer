@@ -148,6 +148,16 @@
     let achievedStockDays = 0;
     if (input.daily && input.daily > 0) achievedStockDays = effectiveCapacity / input.daily;
 
+    // 폭이 길이보다 크면 Shed 로서 성립하지 않는 형상이다.
+    // 담을 양에 비해 bay 가 많거나 La 가 크다는 뜻 — 건물이 옆으로만 넓어진다.
+    if (maxCellCount > 0 && width > length) {
+      warnings.push(
+        `건물 폭(${fmt(width)} m)이 길이(${fmt(length)} m)보다 큽니다 — ` +
+        `담을 양에 비해 bay 수나 개방측 적치거리(La)가 큽니다. ` +
+        `bay 를 1열로 줄이거나 La 를 줄여 검토하십시오`
+      );
+    }
+
     if (input.designCapacity && input.designCapacity > totalCapacity) {
       warnings.push(
         `설계 대상용량 ${fmt(input.designCapacity)} t 가 현재 구성 총 저장용량 ` +

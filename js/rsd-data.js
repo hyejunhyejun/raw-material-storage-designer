@@ -54,6 +54,8 @@
       trippers: 2,               // 중앙 옹벽 상부 적치 Tripper 기수
       sprPerBay: 2,              // Semi Portal Reclaimer — 면당 기수
       cellLength: 37,            // 셀 기본 길이 (add 모드에서 고정값)
+      minCellLength: 15,         // 셀 최소 길이 — 이보다 짧아지면 셀 수를 줄인다
+                                 // (격벽 2 m 인데 셀이 5 m 면 실무에 없는 형상이다)
       cellsPerBayCount: 6,       // bay 당 셀 수
       sizingMode: 'grow',        // grow = 셀 수 고정·길이를 늘림 / add = 길이 고정·개수를 늘림
       totalHeight: 60.5,         // 전고

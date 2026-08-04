@@ -149,12 +149,23 @@
       perBay = Math.max(1, Math.ceil(need / bays));
     } else {
       // grow — 셀 개수를 고정하고 길이를 늘린다 (bay 당 6셀 유지)
-      perBay = Math.max(1, shedIn.cellsPerBayCount || 6);
-      const totalCells = perBay * bays;
+      //
+      // 셀 수를 그대로 고정하면 안 된다. 수요가 적은 원료(부원료 등)는
+      // 셀이 5 m 까지 쪼그라든다 — 격벽이 2 m 인데 셀이 5.5 m 면
+      // 격벽이 셀 길이의 40 % 다. SPR 이 들어갈 수도 없는 형상이다.
+      // 셀이 최소 길이 밑으로 내려가면 **길이를 줄이는 대신 개수를 줄인다**.
+      const minLen = shedIn.minCellLength > 0 ? shedIn.minCellLength : 15;
+      const asked = Math.max(1, shedIn.cellsPerBayCount || 6);
+      const fits = (tPerM > 0 && designCapacity > 0)
+        ? Math.floor(designCapacity / (minLen * tPerM)) : asked * bays;
+      const totalCells = Math.max(1, Math.min(asked * bays, fits));
+      perBay = Math.max(1, Math.ceil(totalCells / bays));
       const needLen = (tPerM > 0 && designCapacity > 0)
-        ? designCapacity / (totalCells * tPerM) : shedIn.cellLength;
-      // 0.5 m 단위로 올림 — 실무 치수 단위
-      cellLen = Math.max(1, Math.ceil(needLen * 2) / 2);
+        ? designCapacity / (perBay * bays * tPerM) : shedIn.cellLength;
+      // 0.5 m 단위로 올림 — 실무 치수 단위.
+      // 최소 길이는 지킨다. 담을 양이 셀 하나보다도 적으면 그게 최소 건물이고,
+      // 남는 용량은 '최종 적치가능 재고일수' 에 그대로 드러난다.
+      cellLen = Math.max(minLen, Math.ceil(needLen * 2) / 2);
     }
 
     const out = [];

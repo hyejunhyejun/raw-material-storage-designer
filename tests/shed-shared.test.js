@@ -285,4 +285,60 @@ function sharedState() {
   });
 }
 
+// ===== 셀이 실무에 없는 길이로 쪼그라들지 않는다 =====
+// 셀 수를 고정하면 수요가 적은 원료(부원료 등)에서 셀이 5 m 까지 줄어든다.
+// 격벽이 2 m 인데 셀이 5.5 m 면 격벽이 셀 길이의 40 % — SPR 이 들어갈 수도 없다.
+{
+  const MIN = 15;
+  [200000, 500000, 1500000, 5000000, 15000000].forEach(function (usage) {
+    const s = app.initialState();
+    s.materials.flux.storageType = 'shed';
+    s.materials.flux.annualUsage = usage;
+    const r = app.recompute(s);
+    const z = r.materials.flux.sizing;
+    if (!z.cells.length) return;
+    const len = z.cells[0].length.value;
+    assert.ok(len >= MIN,
+      usage / 10000 + '만t/년: 셀이 ' + len + ' m 로 쪼그라들었다 (최소 ' + MIN + ' m)');
+    // 격벽이 셀 길이의 20 % 를 넘으면 형상이 성립하지 않는다
+    assert.ok(s.shed.wallThickness <= len * 0.2,
+      usage / 10000 + '만t/년: 격벽(' + s.shed.wallThickness + ' m)이 셀(' + len + ' m)에 비해 두껍다');
+  });
+}
+
+// ===== 셀 수를 줄여도 필요 용량은 확보한다 =====
+{
+  const s = app.initialState();
+  s.materials.flux.storageType = 'shed';
+  const r = app.recompute(s);
+  const e = r.materials.flux;
+  assert.ok(e.sizing.totalCapacity.value >= e.demand.designCapacity.value - 1e-6,
+    '셀을 줄였다고 용량이 모자라면 안 된다');
+  // 셀 하나를 빼면 모자라야 한다 (과다 배분이 아님)
+  const per = e.sizing.totalCapacity.value / e.sizing.cells.length;
+  assert.ok(e.sizing.totalCapacity.value - per < e.demand.designCapacity.value,
+    '셀이 하나 남는다 (과다 배분)');
+}
+
+// ===== 폭이 길이보다 크면 경고한다 =====
+// 담을 양에 비해 bay 나 La 가 크다는 신호다 — 그 자체로 구성이 잘못됐다.
+{
+  const s = app.initialState();
+  s.materials.flux.storageType = 'shed';
+  s.shed.bays = 2;
+  const z = app.recompute(s).materials.flux.sizing;
+  assert.ok(z.width.value > z.length.value, '이 조건은 폭이 길이보다 크다');
+  assert.ok(z.warnings.some(function (w) { return /폭/.test(w) && /길이/.test(w); }),
+    '폭 > 길이면 경고해야 한다');
+
+  // bay 를 1열로 줄이면 정상 비례가 된다
+  const s1 = app.initialState();
+  s1.materials.flux.storageType = 'shed';
+  s1.shed.bays = 1;
+  const z1 = app.recompute(s1).materials.flux.sizing;
+  assert.ok(z1.length.value > z1.width.value, '1 bay 로 줄이면 길이가 폭보다 커야 한다');
+  assert.strictEqual(z1.warnings.filter(function (w) { return /폭/.test(w); }).length, 0,
+    '정상 비례면 경고가 없어야 한다');
+}
+
 console.log('OK: shed-shared');
