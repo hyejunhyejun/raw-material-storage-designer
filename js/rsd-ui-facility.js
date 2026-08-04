@@ -32,6 +32,9 @@
       c.numberField({ path: 'shed.Lb', label: '옹벽측 적치거리 (Lb)', value: s.Lb, unit: 'm', step: 0.5, min: 0 }) +
       c.numberField({ path: 'shed.bottomSlope', label: '하부 경사각', value: s.bottomSlope, unit: '°', step: 0.1, min: 0 }) +
       c.numberField({ path: 'shed.bays', label: 'bay 수', value: s.bays, unit: '열', step: 1, min: 1 }) +
+      c.selectField({ path: 'shed.buildingMode', label: '건물 구성', value: s.buildingMode,
+        options: [{ value: 'separate', label: '원료별로 따로 짓기' },
+                  { value: 'shared',   label: '한 동에 모아 짓기 (공용 Shed)' }] }) +
       c.selectField({ path: 'shed.sizingMode', label: '용량 확보 방식', value: s.sizingMode,
         options: [{ value: 'grow',   label: '셀 개수 고정 · 셀 길이 자동' },
                   { value: 'add',    label: '셀 길이 고정 · 셀 개수 자동' },
@@ -105,7 +108,100 @@
       gap + rows.join('') + '</div>';
   }
 
+  // 공용 Shed — 건물 하나에 여러 원료. 원료별 카드 대신 한 장으로 보여준다.
+  //
+  // 핵심은 "같은 크기 셀이라도 원료마다 담기는 양이 다르다"는 것.
+  // 안식각이 크면 더 높이 쌓이고, 비중이 크면 같은 부피에 더 많은 톤이 들어간다.
+  // 철광석은 석탄의 2.6배가 담기므로 이 표가 곧 셀 배분의 근거다.
+  function renderSharedShed(state, result) {
+    const sh = result.sharedShed;
+    const s = sh.sizing;
+    const she = EQ.shedEquipment({
+      bays: state.shed.bays, sprPerBay: state.shed.sprPerBay, trippers: state.shed.trippers
+    });
+    const bayW = s.width.value / Math.max(1, state.shed.bays);
+    const totalLen = sh.keys.reduce(function (t, k) {
+      const e = s.byMaterial[k];
+      return t + (e ? e.length : 0);
+    }, 0);
+
+    const rows = sh.keys.map(function (k) {
+      const e = s.byMaterial[k] || { cellCount: 0, length: 0, capacity: 0, tPerM: 0 };
+      const m = result.materials[k].material;
+      const need = result.materials[k].demand.designCapacity.value;
+      const share = totalLen > 0 ? e.length / totalLen : 0;
+      const ok = e.capacity >= need - 1e-6;
+      return '<tr><td><span class="swatch" style="background:' + c.esc(m.color) + '"></span> ' +
+        c.esc(m.label) + '</td>' +
+        '<td class="n">' + m.repose + '°</td>' +
+        '<td class="n">' + m.density + '</td>' +
+        '<td class="n">' + c.num(Math.round(e.tPerM)) + '</td>' +
+        '<td class="n">' + e.cellCount + '</td>' +
+        '<td class="n">' + c.num(Math.round(e.length)) + '</td>' +
+        '<td class="n">' + c.num(Math.round(need)) + '</td>' +
+        '<td class="n">' + c.num(Math.round(e.capacity)) +
+        (ok ? '' : ' <span class="cell-short">부족</span>') + '</td>' +
+        '<td class="n">' + (share * 100).toFixed(1) + ' %</td></tr>';
+    }).join('');
+
+    return '<section class="card material-block" data-material="shared-shed">' +
+      '<h3>공용 Shed — ' + sh.keys.map(function (k) {
+        return '<span class="swatch" style="background:' +
+          c.esc(result.materials[k].material.color) + '"></span>' +
+          c.esc(result.materials[k].material.label);
+      }).join(' + ') + '</h3>' +
+      '<div class="tiles">' +
+      c.statTile({ label: '건물 치수', value: Math.round(s.length.value), unit: 'm',
+        sub: '× ' + Math.round(s.width.value) + ' m × ' + state.shed.totalHeight + ' m' }) +
+      c.statTile({ label: '총 셀 수', value: s.cells.length, unit: '개' }) +
+      c.statTile({ label: '총 저장용량', value: s.totalCapacity.value, unit: 't' }) +
+      c.statTile({ label: '점유면적', value: s.area.value, unit: 'm²' }) +
+      '</div>' +
+      '<p class="dim">적치 Tripper ' + she.trippers + '기 (중앙 옹벽 상부) · ' +
+      '불출 Semi Portal Reclaimer ' + she.sprTotal + '기 (면당 ' + she.sprPerBay + '기)</p>' +
+      c.warnBox(s.warnings) +
+      '<h4 class="fields-title">원료별 셀 배분</h4>' +
+      '<p class="dim">같은 크기의 셀이라도 <b>원료마다 담기는 양이 다릅니다</b> — ' +
+      '안식각이 크면 더 높이 쌓이고, 비중이 크면 같은 부피에 더 많은 톤이 들어갑니다.</p>' +
+      '<table class="sheet-table"><thead><tr>' +
+      '<th>원료</th><th class="n">안식각</th><th class="n">비중</th>' +
+      '<th class="n">단위길이 용량 (t/m)</th><th class="n">셀 수</th><th class="n">적치길이 (m)</th>' +
+      '<th class="n">필요 (t)</th><th class="n">확보 (t)</th><th class="n">면적 배분</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<div class="dwg-wrap"><h4>단면도</h4>' +
+      ds.drawShedSection({
+        La: state.shed.La, Lb: state.shed.Lb,
+        repose: result.materials[sh.keys[0]].material.repose,
+        bottomSlope: state.shed.bottomSlope, bays: state.shed.bays,
+        centerWall: state.shed.centerWallThickness, openClear: state.shed.openSideClear,
+        slopeClear: state.shed.slopeSideClear, totalHeight: state.shed.totalHeight,
+        color: result.materials[sh.keys[0]].material.color, section: s.section
+      }) + '</div>' +
+      '<p class="dim">단면은 ' + c.esc(result.materials[sh.keys[0]].material.label) +
+      ' 기준입니다 — 건물 기하는 공통이고 안식각만 원료마다 달라집니다.</p>' +
+      '<div class="dwg-wrap"><h4>평면도 — 원료별 구역</h4>' +
+      ds.drawShedPlan({
+        cells: s.cells, bays: state.shed.bays, bayWidth: bayW,
+        wallThickness: state.shed.wallThickness, endWall: state.shed.endWallThickness,
+        maintZone: state.shed.maintZone,
+        trippers: state.shed.trippers, sprPerBay: state.shed.sprPerBay,
+        length: s.length.value, width: s.width.value,
+        color: result.materials[sh.keys[0]].material.color
+      }) + '</div>' +
+      '<details class="sheet"><summary>계산서 전체 보기</summary>' +
+      c.resultTable([
+        { label: 'bay당 적치길이', res: s.stackLengthPerBay },
+        { label: '총 저장용량', res: s.totalCapacity },
+        { label: '유효 저장용량', res: s.effectiveCapacity },
+        { label: '건물 길이', res: s.length },
+        { label: '건물 폭', res: s.width },
+        { label: '점유면적', res: s.area }
+      ]) + '</details></section>';
+  }
+
   function renderShedResult(state, result) {
+    // 공용 Shed 는 건물이 하나 — 원료별 카드 대신 한 장으로
+    if (result.sharedShed) return renderSharedShed(state, result);
     const blocks = [];
     Object.keys(result.materials).forEach(function (k) {
       const e = result.materials[k];

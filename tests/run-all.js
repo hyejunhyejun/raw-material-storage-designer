@@ -25,6 +25,7 @@ const tests = [
   'draw2d-master.test.js',
   'compare.test.js',
   'shed-manual.test.js',
+  'shed-shared.test.js',
   'wiring.test.js',
   'cross-check.test.js',
   'consistency.test.js',

@@ -49,6 +49,8 @@
       openSideClear: 13.5,       // 개방측 여유 (SPR 주행 + 불출 B/C 2Line + 외벽)
       maintZone: 15.25,          // 정비존 (상·하 각각)
       bays: 2,                   // bay 수 (1 또는 2)
+      buildingMode: 'separate', // separate = 원료별로 따로 / shared = 한 동에 모아 짓기
+                                 // (불리언을 select 로 받으면 "false" 가 truthy 라 반드시 샌다)
       trippers: 2,               // 중앙 옹벽 상부 적치 Tripper 기수
       sprPerBay: 2,              // Semi Portal Reclaimer — 면당 기수
       cellLength: 37,            // 셀 기본 길이 (add 모드에서 고정값)

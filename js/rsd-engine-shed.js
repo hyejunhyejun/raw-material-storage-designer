@@ -52,10 +52,34 @@
   }
 
   // Shed 전체: 셀 용량 + 건물 치수
+  //
+  // 셀은 길이(숫자) 또는 { length, key } 로 준다.
+  // key 가 있고 input.materialsByKey 에 그 원료가 있으면 **그 원료의 단면**으로 용량을 낸다 —
+  // 한 동에 여러 원료를 담을 때 필요한 계산이다.
+  // 같은 크기의 셀이라도 원료마다 담기는 양이 다르다:
+  //   · 안식각이 크면 더 높이 쌓여 단면적이 커진다
+  //   · 비중이 크면 같은 부피에 더 많은 톤이 들어간다
+  // 철광석(2.3 t/m³)은 석탄(0.8)의 3배 가까이 담기므로, 이걸 무시하면 셀 배분이 통째로 틀린다.
+  function cellLength(c) { return (c && typeof c === 'object') ? c.length : c; }
+  function cellKey(c) { return (c && typeof c === 'object') ? c.key : null; }
+
   function computeShed(input) {
     const warnings = [];
     const section = computeSection(input);
     const tPerM = section.tPerM.value;
+
+    // 원료별 단면 — 셀에 원료가 지정된 경우에만 쓴다
+    const byKey = input.materialsByKey || {};
+    const sections = {};
+    Object.keys(byKey).forEach(function (k) {
+      const m = byKey[k];
+      sections[k] = computeSection(Object.assign({}, input, {
+        density: m.density, repose: m.repose
+      }));
+    });
+    function tPerMOf(key) {
+      return (key && sections[key]) ? sections[key].tPerM.value : tPerM;
+    }
 
     const bays = input.bays;
     const cellsPerBay = input.cellsPerBay || [];
@@ -75,16 +99,23 @@
       const lengths = cellsPerBay[b];
       let bayLength = 0;
       for (let i = 0; i < lengths.length; i++) {
-        const len = lengths[i];
-        const cap = len * tPerM;
+        const len = cellLength(lengths[i]);
+        const key = cellKey(lengths[i]);
+        const tm = tPerMOf(key);
+        const cap = len * tm;
         totalCapacity += cap;
         bayLength += len;
+        const mat = key ? byKey[key] : null;
         cells.push({
           bay: b + 1,
           index: i + 1,
+          key: key,
+          label: mat ? mat.label : null,
+          color: mat ? mat.color : null,
           length: res(len, 'm', `Bay ${b + 1} · ${i + 1}번 셀 길이`, `= ${len}`, '사용자 입력'),
-          capacity: res(cap, 't', '셀 용량 = 단위길이 용량 × 셀 길이',
-            `= ${tPerM.toFixed(2)} × ${len} = ${fmt(cap)}`, SRC)
+          capacity: res(cap, 't',
+            '셀 용량 = 단위길이 용량 × 셀 길이' + (mat ? ` (${mat.label} 기준)` : ''),
+            `= ${tm.toFixed(2)} × ${len} = ${fmt(cap)}`, SRC)
         });
       }
       if (bayLength > maxBayStackLength) maxBayStackLength = bayLength;
@@ -124,8 +155,28 @@
       );
     }
 
+    // 원료별 소계 — 한 동에 여러 원료를 담을 때 "누가 얼마나 쓰는가"
+    const byMaterial = {};
+    cells.forEach(function (c) {
+      const k = c.key || '_';
+      if (!byMaterial[k]) {
+        byMaterial[k] = {
+          key: c.key, label: c.label, color: c.color,
+          cellCount: 0, length: 0, capacity: 0,
+          tPerM: tPerMOf(c.key)
+        };
+      }
+      const e = byMaterial[k];
+      e.cellCount += 1;
+      e.length += c.length.value;
+      e.capacity += c.capacity.value;
+    });
+
     return {
       section: section,
+      sections: sections,
+      byMaterial: byMaterial,
+      shared: Object.keys(byMaterial).filter(function (k) { return k !== '_'; }).length > 1,
       cells: cells,
       stackLengthPerBay: res(maxBayStackLength, 'm', 'bay당 적치길이 = Σ 셀 길이',
         `= ${fmt(maxBayStackLength)}`, SRC_DIM),

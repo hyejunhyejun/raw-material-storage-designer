@@ -408,7 +408,9 @@
         parts.push('<rect class="partition" x="' + r2(x) + '" y="' + r2(y0 + 1.5) +
           '" width="' + r2(o.wallThickness) + '" height="' + r2(bayW - 3) + '"/>');
         x += o.wallThickness;
-        parts.push('<rect class="cell" fill="' + fill + '" x="' + r2(x) + '" y="' + r2(y0 + 1.5) +
+        // 공용 Shed 는 셀마다 원료가 다르다 — 색으로 구역을 나눠야 배치가 읽힌다
+        const cellFill = c.color ? shade(c.color, 22) : fill;
+        parts.push('<rect class="cell" fill="' + cellFill + '" x="' + r2(x) + '" y="' + r2(y0 + 1.5) +
           '" width="' + r2(len) + '" height="' + r2(bayW - 3) + '"/>');
         // 셀 번호 · 길이 · 용량.
         // 셀이 글씨보다 좁으면(직접 입력으로 5 m 짜리 셀도 나온다) 옆 셀 글씨와
@@ -481,13 +483,30 @@
       }
     }
 
+    // 원료 범례 — 공용 Shed 에서 어느 색이 어느 원료인지
+    const legend = [];
+    o.cells.forEach(function (c) {
+      if (!c.key || legend.some(function (g) { return g.key === c.key; })) return;
+      legend.push({ key: c.key, label: c.label, color: c.color });
+    });
+    if (legend.length > 1) {
+      let lx = 0;
+      legend.forEach(function (g) {
+        parts.push('<rect class="cell" fill="' + shade(g.color, 22) + '" x="' + r2(lx) +
+          '" y="' + r2(W + fs * 1.2) + '" width="' + r2(fa) + '" height="' + r2(fa) + '"/>');
+        parts.push('<text class="eq-tag" x="' + r2(lx + fa * 1.4) + '" y="' + r2(W + fs * 1.2 + fa * 0.5) +
+          '" font-size="' + r2(fa) + '" text-anchor="start">' + esc(g.label) + '</text>');
+        lx += fa * 1.4 + textUnits(g.label) * fa + fa * 1.6;
+      });
+    }
+
     // 치수
     parts.push(hDim(0, L, -fs * 1.6, '총 길이 ' + dim(L) + ' m', fs));
     parts.push(vDim(0, W, -fs * 1.8, '총 폭 ' + dim(W) + ' m', fs));
 
     const x0 = -fs * 4.2, y0 = -fs * 3.4;
     const vw = (L + fs * 2.2) - x0;
-    const vh = (W + fs * 2.2) - y0;
+    const vh = (W + (legend.length > 1 ? fs * 3.6 : fs * 2.2)) - y0;
     return '<svg class="dwg dwg-shed-plan" viewBox="' + [x0, y0, vw, vh].map(r2).join(' ') +
       '" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">' +
       parts.join('') + '</svg>';

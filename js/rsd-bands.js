@@ -58,6 +58,12 @@
             maintLength: state.yard.maintLength, roadWidth: state.yard.roadWidth
           });
         }
+      } else if (e.type === 'shed' && result.sharedShed) {
+        // 공용 Shed 는 건물이 하나 — 띠도 하나만 낸다.
+        // 원료마다 띠를 내면 같은 건물이 3개로 그려진다.
+        if (result.sharedShed.keys[0] === k) {
+          others.push({ key: k, entry: e, material: m, sharedShed: result.sharedShed });
+        }
       } else {
         others.push({ key: k, entry: e, material: m });
       }
@@ -114,10 +120,18 @@
           totalHeight: e.sizing.totalHeight.value
         });
       } else if (e.type === 'shed') {
+        const sh = o.sharedShed;
+        const label = sh
+          ? '공용 Shed (' + sh.keys.map(function (k) {
+              return result.materials[k].material.label;
+            }).join(' · ') + ')'
+          : m.label + ' Shed';
         out.push({
-          label: m.label + ' Shed', width: e.sizing.width.value,
+          label: label, width: e.sizing.width.value,
           length: e.sizing.length.value, kind: 'shed', color: m.color,
-          materialKey: o.key, sizing: e.sizing, material: m,
+          materialKey: sh ? null : o.key,   // 공용이면 특정 원료의 것이 아니다
+          sharedKeys: sh ? sh.keys.slice() : null,
+          sizing: e.sizing, material: m,
           bays: state.shed.bays, wallThickness: state.shed.wallThickness,
           maintZone: state.shed.maintZone
         });

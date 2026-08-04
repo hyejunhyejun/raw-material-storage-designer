@@ -116,6 +116,8 @@
 
   // ---------- 배치 ----------
 
+  function shade0(m) { m.castShadow = true; m.receiveShadow = true; return m; }
+
   function disposeGroup(g) {
     g.traverse(function (o) {
       if (o.geometry) o.geometry.dispose();
@@ -321,54 +323,122 @@
         });
 
       } else if (b.kind === 'shed') {
-        const wallMat = new THREE.MeshStandardMaterial({ color: col(0xd6d8db), roughness: .8 });
-        const shed = makeShed(b.length, b.width, state.shed.totalHeight, wallMat, roofMat);
-        shed.position.set(0, 0, zc);
-        bg.add(shed);
+        // 건물은 **속이 보이게** 세운다 — 불투명하게 덮으면 안에서 무슨 일이
+        // 일어나는지 하나도 안 보인다. 골조는 그대로, 외장만 반투명.
+        const H = state.shed.totalHeight;
+        const wallTop = H * 0.49;
+        const shell = E3.makeShedShell({
+          len: b.length, width: b.width, height: H, mat: steelMat,
+          cladColor: col(0xd6d8db), roofColor: col(SHED_RF)
+        });
+        shell.position.set(0, 0, zc);
+        bg.add(shell);
 
-        const bayW = b.width / state.shed.bays;
-        const wallTop = state.shed.totalHeight * 0.49;
-        const she = EQ.shedEquipment({
-          bays: state.shed.bays, sprPerBay: state.shed.sprPerBay,
-          trippers: state.shed.trippers
+        const bays = Math.max(1, state.shed.bays);
+        const bayW = b.width / bays;
+        const sz = b.sizing;
+        const sec = sz.section;
+        const Lb = state.shed.Lb, La = state.shed.La;
+        const cw = state.shed.centerWallThickness;
+        const mz = state.shed.maintZone, wt = state.shed.wallThickness;
+
+        const cwallMat = new THREE.MeshStandardMaterial({ color: col(0x9a9a94), roughness: .95 });
+
+        // 셀별 원료 더미 + 격벽 — 좌표는 rsd-equip.shedLayout 이 계산한다
+        // (압출 방향 부호를 그리는 코드 안에서 잡다가 더미가 옹벽을 뚫은 적이 있다)
+        const SL = EQ.shedLayout({
+          bays: bays, length: b.length, width: b.width,
+          centerWall: cw, maintZone: mz, wallThickness: wt,
+          Lb: Lb, La: La, openSideClear: state.shed.openSideClear,
+          cells: sz.cells || []
+        });
+        const cellByIdx = {};
+        (sz.cells || []).forEach(function (c, i) { cellByIdx[i] = c; });
+
+        // 중앙 옹벽 — Tripper 가 이 위를 달린다.
+        // 1 bay 면 건물 한쪽 끝에 붙으므로 자리는 layout 이 정한다.
+        const cwall = shade0(new THREE.Mesh(
+          new THREE.BoxGeometry(b.length, sec.h1.value + 4, cw), cwallMat));
+        cwall.position.set(0, (sec.h1.value + 4) / 2, zc + SL.wallCenter);
+        bg.add(cwall);
+
+        SL.piles.forEach(function (pl, i) {
+          const c = (sz.cells || [])[i] || {};
+          const ms = (sz.sections && pl.key && sz.sections[pl.key]) ? sz.sections[pl.key] : sec;
+          const pmat = c.color
+            ? new THREE.MeshStandardMaterial({ color: col(c.color), roughness: 1 })
+            : oreMat;
+          const pile = E3.makeShedPile({
+            len: pl.len, Lb: Lb, La: La,
+            h1: ms.h1.value, wallHeight: ms.wallHeight.value, mat: pmat
+          });
+          // 압출 형상은 rotateY(+90°) 때문에 단면 x 가 월드 −z 로 간다.
+          // +z 쪽 bay 는 뒤집어야 옹벽 밖으로 나간다.
+          pile.position.set(pl.x, 0, zc + pl.z);
+          pile.scale.z = -pl.dir;
+          bg.add(pile);
+        });
+        SL.partitions.forEach(function (pt) {
+          const part = shade0(new THREE.Mesh(
+            new THREE.BoxGeometry(wt, sec.h1.value + 2, pt.depth), cwallMat));
+          part.position.set(pt.x, (sec.h1.value + 2) / 2, zc + pt.zCenter);
+          bg.add(part);
         });
 
-        // 중앙 옹벽 상부 Tripper — 좌우 Cell 에 교대 적치
+        const she = EQ.shedEquipment({
+          bays: bays, sprPerBay: state.shed.sprPerBay, trippers: state.shed.trippers
+        });
+
+        // 적치 — Tripper 가 중앙 옹벽 위를 달리며 양쪽 Cell 로 떨군다
         for (let i = 0; i < she.trippers; i++) {
           const tp = E3.makeTripper({ width: 15, height: 14, mat: steelMat,
             accentMat: accentMat, motorMat: motorMat, oreMat: oreMat,
             dropHeight: 12, twoWay: true });
           const zoneW = b.length / she.trippers;
           const cx = -b.length / 2 + zoneW * (i + 0.5);
-          tp.position.set(cx, state.shed.totalHeight * 0.72, zc);
+          tp.position.set(cx, sec.h1.value + 4, zc + SL.wallCenter);
           tp.userData.anim = {
             kind: 'travel', axis: 'x',
             center: cx, range: zoneW * 0.78, period: 30 + i * 5, phase: i * 0.5
           };
           bg.add(tp);
         }
+        // 공급 B/C — Tripper 에 원료를 실어 나른다
+        const feed = E3.makeGallery({ len: b.length, mat: steelMat, height: sec.h1.value + 2, width: 3.0 });
+        feed.position.set(0, 0, zc + SL.wallCenter);
+        bg.add(feed);
+        const feedFlow = E3.makeFlow({ len: b.length, mat: oreMat, y: sec.h1.value + 5.5, speed: 26 });
+        feedFlow.position.set(0, 0, zc + SL.wallCenter);
+        bg.add(feedFlow);
 
-        // SPR — 면당 2기, 각 bay 안에서 빗변을 긁는다
-        for (let bay = 0; bay < state.shed.bays; bay++) {
-          const bayCz = zc - b.width / 2 + bayW * (bay + 0.5);
+        // 불출 — SPR 이 개방측 빗변을 긁어 하부 B/C 로 보낸다
+        for (let bay = 0; bay < bays; bay++) {
+          const sg = (bays === 1) ? 1 : (bay === 0 ? -1 : 1);
+          const bayCz = zc + SL.wallCenter + sg * (cw / 2 + (Lb + La) / 2);
           for (let k = 0; k < she.sprPerBay; k++) {
             const spr = E3.makeSPR({
-              span: bayW * 0.82, height: wallTop,
-              slopeLen: state.shed.La * 0.9, slopeAngle: state.shed.La ? 0.6 : 0.6,
+              span: (Lb + La) * 0.95, height: wallTop * 0.86,
+              slopeLen: La * 0.92, slopeAngle: Math.atan2(sec.h1.value, La),
               mat: steelMat, accentMat: accentMat
             });
-            const cx = -b.length / 2 + b.length * ((k + 1) / (she.sprPerBay + 1));
+            const zoneW = b.length / she.sprPerBay;
+            const cx = -b.length / 2 + zoneW * (k + 0.5);
             spr.position.set(cx, 0, bayCz);
+            spr.rotation.y = (sg > 0) ? 0 : Math.PI;
             spr.userData.anim = {
               kind: 'travel', axis: 'x',
-              center: cx, range: b.length * 0.3, period: 22, phase: (bay + k) * 0.4
+              center: cx, range: zoneW * 0.7, period: 22 + k * 3, phase: (bay + k) * 0.4
             };
             bg.add(spr);
           }
-          // 하부 불출 B/C — 면마다 1 Line
+          // 하부 불출 B/C — 개방측 바깥에 면마다 1 Line
+          const outZ = zc + SL.outBelts[bay].z;
           const og = E3.makeGallery({ len: b.length, mat: steelMat, height: 2.2, width: 2.4 });
-          og.position.set(0, 0, bayCz + bayW * 0.42);
+          og.position.set(0, 0, outZ);
           bg.add(og);
+          const of = E3.makeFlow({ len: b.length, mat: oreMat, y: 2.8, speed: 22 });
+          of.position.set(0, 0, outZ);
+          bg.add(of);
         }
       }
 

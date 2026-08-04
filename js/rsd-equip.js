@@ -112,7 +112,64 @@
     return { rows: rows, perRow: perRow, rowZ: rowZ, silos: silos, feedZ: feedZ, outZ: outZ, x0: x0 };
   }
 
+  // ---------- Shed 내부 배치 좌표 ----------
+  //
+  // 3D 에서 셀별 원료 더미·격벽을 어디에 놓을지. 그리는 코드 안에 흩어 두면
+  // 확인할 방법이 없다 — 실제로 압출 방향 부호를 잘못 잡아 더미가 중앙 옹벽
+  // 속으로 파고드는 결함이 났다.
+  //
+  // 좌표계: 건물 중심이 원점, x = 길이방향, z = 폭방향
+  //   · 2 bay — 중앙 옹벽이 건물 한가운데(z=0), 원료가 양쪽으로
+  //   · 1 bay — 옹벽이 건물 **한쪽 끝**에 붙고 원료는 한 방향으로만.
+  //     (bay 폭에 옹벽 절반이 이미 들어 있으므로 옹벽을 가운데 두면
+  //      원료가 건물 밖으로 절반이나 튀어나간다)
+  //   · 더미는 옹벽면에서 개방측으로 (Lb + La) 만큼 뻗는다
+  //   · dir = +1 이면 +z 방향, −1 이면 −z 방향
+  function shedLayout(o) {
+    const bays = Math.max(1, o.bays);
+    const L = o.length, W = o.width;
+    const cw = o.centerWall, mz = o.maintZone, wt = o.wallThickness;
+    const reach = o.Lb + o.La;                 // 옹벽면에서 개방측 끝까지
+    // 중앙 옹벽 중심 — 2 bay 면 한가운데, 1 bay 면 한쪽 끝
+    const wallCenter = (bays === 1) ? (-W / 2 + cw / 2) : 0;
+
+    const byBay = {};
+    (o.cells || []).forEach(function (c) {
+      const b = c.bay || 1;
+      if (!byBay[b]) byBay[b] = [];
+      byBay[b].push(c);
+    });
+
+    const piles = [], partitions = [], outBelts = [];
+    for (let bay = 0; bay < bays; bay++) {
+      const dir = (bays === 1) ? 1 : (bay === 0 ? -1 : 1);
+      const wallFace = wallCenter + dir * cw / 2;
+      const list = byBay[bay + 1] || [];
+      let x = -L / 2 + mz;
+      list.forEach(function (c, i) {
+        const len = (c.length && c.length.value !== undefined) ? c.length.value : c.length;
+        piles.push({
+          bay: bay + 1, index: i, key: c.key || null,
+          x: x, len: len,
+          z: wallFace, dir: dir,
+          zFar: wallFace + dir * reach       // 개방측 끝
+        });
+        partitions.push({ x: x - wt / 2, zCenter: wallFace + dir * reach / 2, depth: reach });
+        x += len + wt;
+      });
+      if (list.length) {
+        partitions.push({ x: x - wt / 2, zCenter: wallFace + dir * reach / 2, depth: reach });
+      }
+      // 하부 불출 B/C — 개방측 바깥
+      outBelts.push({ bay: bay + 1, z: wallFace + dir * (reach + o.openSideClear * 0.5) });
+    }
+    return { bays: bays, piles: piles, partitions: partitions, outBelts: outBelts,
+             wallCenter: wallCenter, wallThickness: cw,
+             halfWidth: W / 2, halfLength: L / 2, reach: reach };
+  }
+
   const api = {
+    shedLayout: shedLayout,
     siloLayout: siloLayout,
     yardEquipment: yardEquipment, siloEquipment: siloEquipment,
     shedEquipment: shedEquipment, SR_MAX: SR_MAX, ZONE_GUARD: ZONE_GUARD

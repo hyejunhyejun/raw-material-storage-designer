@@ -183,10 +183,78 @@
     return out;
   }
 
+  // 공용 Shed — 한 동에 여러 원료를 함께 담는다.
+  //
+  // 원료마다 안식각·비중이 다르므로 **같은 크기의 셀이라도 담기는 양이 다르다**.
+  // 철광석(2.3 t/m³)은 석탄(0.8)의 2.6배가 들어간다. 그래서 셀 배분은
+  // 원료별 t/m 으로 각각 계산해야 한다.
+  //
+  // 배치는 원료별로 뭉쳐 놓는다 (한 구역에 한 원료) — 실제 운용이 그렇고,
+  // 섞어 놓으면 Tripper 주행·불출 동선이 엉킨다.
+  // bay 배정은 그때그때 짧은 쪽에 넣어 두 bay 길이를 맞춘다 —
+  // 건물 길이는 **긴 bay** 가 결정하므로 한쪽에 몰면 건물이 길어진다.
+  function buildSharedCells(state, matsByKey, needByKey) {
+    const bays = Math.max(1, state.shed.bays);
+    const cellLen = Math.max(1, state.shed.cellLength);
+    const rows = [], bayLen = [];
+    for (let b = 0; b < bays; b++) { rows.push([]); bayLen.push(0); }
+
+    const section = shedE.computeSection(state.shed);   // 기하는 공통
+    Object.keys(needByKey).forEach(function (key) {
+      const m = matsByKey[key];
+      const need = needByKey[key];
+      if (!(need > 0)) return;
+      // 그 원료의 단면으로 셀 1개 용량을 낸다
+      const sec = shedE.computeSection(Object.assign({}, state.shed, {
+        density: m.density, repose: m.repose
+      }));
+      const perCell = cellLen * sec.tPerM.value;
+      const n = (perCell > 0) ? Math.ceil(need / perCell) : 0;
+      // 짧은 bay 부터 채워 두 bay 길이를 맞춘다
+      let bi = 0;
+      for (let i = 0; i < n; i++) {
+        bi = bayLen.indexOf(Math.min.apply(null, bayLen));
+        rows[bi].push({ length: cellLen, key: key });
+        bayLen[bi] += cellLen;
+      }
+    });
+    // 셀이 하나도 없으면 빈 bay 배열 (건물 없음)
+    return rows;
+  }
+
   // 상태 → 결과. 순수 함수이며 DOM을 모른다.
   function recompute(state) {
     const out = { materials: {}, totals: { area: 0 } };
     let yardRowsTotal = 0;
+
+    // 공용 Shed — 여러 원료를 한 동에 담는 구성이면 건물을 한 번만 세운다
+    const shedKeys = enabledKeys(state).filter(function (k) {
+      return state.materials[k].storageType === 'shed';
+    });
+    const useShared = (state.shed.buildingMode === 'shared') && shedKeys.length > 0;
+    let sharedShed = null;
+    if (useShared) {
+      const matsByKey = {}, needByKey = {};
+      shedKeys.forEach(function (k) {
+        const m = state.materials[k];
+        matsByKey[k] = { label: m.label, density: m.density, repose: m.repose, color: m.color };
+        const d = core.computeDemand({
+          annualUsage: m.annualUsage, operatingDays: state.operatingDays,
+          stockDays: m.stockDays, operatingEff: state.shed.operatingEff, label: m.label
+        });
+        needByKey[k] = d.designCapacity.value;
+      });
+      const cells = buildSharedCells(state, matsByKey, needByKey);
+      const sizing = shedE.computeShed(Object.assign({}, state.shed, {
+        density: state.materials[shedKeys[0]].density,
+        repose: state.materials[shedKeys[0]].repose,
+        materialsByKey: matsByKey,
+        cellsPerBay: cells,
+        operatingEff: state.shed.operatingEff
+      }));
+      sharedShed = { sizing: sizing, keys: shedKeys, matsByKey: matsByKey };
+      out.sharedShed = sharedShed;
+    }
 
     for (const key of enabledKeys(state)) {
       const m = state.materials[key];
@@ -211,6 +279,17 @@
           density: m.density, designCapacity: design, daily: daily, operatingEff: eff
         }));
         area = sizing.area.value;
+      } else if (type === 'shed' && useShared) {
+        // 공용 Shed — 건물은 하나. 면적은 그 원료가 쓰는 셀 길이 비율로 나눈다.
+        // (건물을 원료 수만큼 세면 총면적이 몇 배로 부풀려진다)
+        sizing = sharedShed.sizing;
+        const mine = sizing.byMaterial[key];
+        const totalLen = Object.keys(sizing.byMaterial).reduce(function (t, k) {
+          return t + sizing.byMaterial[k].length;
+        }, 0);
+        const share = (totalLen > 0 && mine) ? mine.length / totalLen : 0;
+        area = sizing.area.value * share;
+
       } else if (type === 'shed') {
         // 셀 구성이 지정되지 않았으면 설계 대상용량을 담을 만큼 균등 셀을 자동 생성한다.
         // 사용자가 나중에 셀별 길이를 개별 수정할 수 있게 배열 형태로 만들어 둔다.
@@ -795,6 +874,7 @@
   const api = {
     createStore: createStore, initialState: initialState, recompute: recompute,
     setPath: setPath, getPath: getPath, buildCells: buildCells, yardInput: yardInput,
+    buildSharedCells: buildSharedCells,
     deepMerge: deepMerge,
     resizeCells: resizeCells,
     enabledKeys: enabledKeys, SCENARIO: SCENARIO,
