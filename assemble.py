@@ -18,6 +18,7 @@ repl = {
     "/*__ENGINE_SHED__*/": read("js/rsd-engine-shed.js"),
     "/*__ENGINE_SILO__*/": read("js/rsd-engine-silo.js"),
     "/*__ENGINE_MASTER__*/": read("js/rsd-engine-master.js"),
+    "/*__COST__*/": read("js/rsd-cost.js"),
     "/*__DRAW2D__*/": read("js/rsd-draw2d.js"),
     "/*__BANDS__*/": read("js/rsd-bands.js"),
     "/*__EQUIP__*/": read("js/rsd-equip.js"),

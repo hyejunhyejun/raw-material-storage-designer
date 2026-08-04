@@ -5,6 +5,7 @@
   const yardE  = req ? require('./rsd-engine-yard.js')   : global.RSD.yard;
   const shedE  = req ? require('./rsd-engine-shed.js')   : global.RSD.shed;
   const siloE  = req ? require('./rsd-engine-silo.js')   : global.RSD.silo;
+  const costE  = req ? require('./rsd-cost.js')          : global.RSD.cost;
 
   function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
 
@@ -98,6 +99,7 @@
       yard: D.yard,
       shed: D.shed,
       silo: D.silo,
+      cost: D.cost,
       master: D.master
     };
   }
@@ -206,31 +208,64 @@
   // 건물 길이는 **긴 bay** 가 결정하므로 한쪽에 몰면 건물이 길어진다.
   function buildSharedCells(state, matsByKey, needByKey) {
     const bays = Math.max(1, state.shed.bays);
-    const cellLen = Math.max(1, state.shed.cellLength);
+    const keys = Object.keys(needByKey).filter(function (k) { return needByKey[k] > 0; });
+
+    // 원료별 셀 1 m 당 용량 — 안식각·비중이 다르므로 같은 길이라도 담기는 양이 다르다
+    const tPerM = {};
+    keys.forEach(function (k) {
+      tPerM[k] = shedE.computeSection(Object.assign({}, state.shed, {
+        density: matsByKey[k].density, repose: matsByKey[k].repose
+      })).tPerM.value;
+    });
+    // 주어진 셀 길이로 전 원료를 담는 데 필요한 셀 수
+    const cellsNeeded = function (len) {
+      return keys.reduce(function (n, k) {
+        const per = len * tPerM[k];
+        return n + (per > 0 ? Math.ceil(needByKey[k] / per) : 0);
+      }, 0);
+    };
+
+    const cellLen = sharedCellLength(state, cellsNeeded);
     const rows = [], bayLen = [];
     for (let b = 0; b < bays; b++) { rows.push([]); bayLen.push(0); }
 
-    const section = shedE.computeSection(state.shed);   // 기하는 공통
-    Object.keys(needByKey).forEach(function (key) {
-      const m = matsByKey[key];
-      const need = needByKey[key];
-      if (!(need > 0)) return;
-      // 그 원료의 단면으로 셀 1개 용량을 낸다
-      const sec = shedE.computeSection(Object.assign({}, state.shed, {
-        density: m.density, repose: m.repose
-      }));
-      const perCell = cellLen * sec.tPerM.value;
-      const n = (perCell > 0) ? Math.ceil(need / perCell) : 0;
+    keys.forEach(function (key) {
+      const per = cellLen * tPerM[key];
+      const n = (per > 0) ? Math.ceil(needByKey[key] / per) : 0;
       // 짧은 bay 부터 채워 두 bay 길이를 맞춘다
-      let bi = 0;
       for (let i = 0; i < n; i++) {
-        bi = bayLen.indexOf(Math.min.apply(null, bayLen));
+        const bi = bayLen.indexOf(Math.min.apply(null, bayLen));
         rows[bi].push({ length: cellLen, key: key });
         bayLen[bi] += cellLen;
       }
     });
-    // 셀이 하나도 없으면 빈 bay 배열 (건물 없음)
+    // bay 길이를 맞춘다 — 건물 길이는 어차피 긴 bay 가 정하므로 짧은 bay 의
+    // 남는 자리는 그냥 빈 땅이다. 마지막 원료 구역을 늘려 셀로 채운다.
+    // (따로 짓기도 bay 마다 같은 셀 수를 세우므로 이래야 두 방식이 같아진다)
+    const maxCells = rows.reduce(function (n, r) { return Math.max(n, r.length); }, 0);
+    rows.forEach(function (r) {
+      while (r.length && r.length < maxCells) {
+        r.push({ length: cellLen, key: r[r.length - 1].key });
+      }
+    });
     return rows;
+  }
+
+  // 공용 Shed 의 셀 길이. 따로 짓기(buildCells)와 같은 규칙을 따라야 한다 —
+  // 원료를 하나만 Shed 로 골랐다면 '모아 짓기'와 '따로 짓기'가 같은 건물이어야 하는데,
+  // 여기서만 셀 길이를 고정하면 형상이 갈린다.
+  function sharedCellLength(state, cellsNeeded) {
+    const sh = state.shed;
+    if (sh.sizingMode === 'add') return Math.max(1, sh.cellLength);
+    // grow — 셀 개수를 목표치 이내로 맞추는 **가장 짧은** 셀 길이를 찾는다.
+    // 원료마다 t/m 이 달라 닫힌 해가 없으므로 0.5 m 단위로 훑는다.
+    // ponytail: 선형 탐색. 셀 길이는 실무상 수백 m 를 넘지 않아 충분하다.
+    const minLen = sh.minCellLength > 0 ? sh.minCellLength : 15;
+    const target = Math.max(1, sh.cellsPerBayCount || 6) * Math.max(1, sh.bays);
+    for (let len = minLen; len <= 500; len += 0.5) {
+      if (cellsNeeded(len) <= target) return len;
+    }
+    return 500;
   }
 
   // 상태 → 결과. 순수 함수이며 DOM을 모른다.
@@ -576,6 +611,7 @@
       const rows = [['원료 저장설비 면적계산 — 계산서'],
                     ['생성', new Date().toLocaleString('ko-KR')],
                     ['연간 가동일수', state.operatingDays, '일'], []];
+      let totalCost = 0;
       Object.keys(result.materials).forEach(function (k) {
         const e = result.materials[k];
         rows.push([e.material.label + ' (' + TYPE_LABEL[e.type] + ')']);
@@ -590,9 +626,17 @@
           if (isRes(e.sizing[key])) push(e.sizing[key].label || key, e.sizing[key]);
         });
         rows.push(['점유면적 (이동기기 면적 포함)', Math.round(e.area), 'm²', '', '', '']);
+        // 투자비도 res 객체이므로 식·대입·출처가 그대로 따라간다
+        const cst = costE.costFor(e.type, e.sizing, state);
+        Object.keys(cst).forEach(function (key) {
+          if (isRes(cst[key])) push(cst[key].label || key, cst[key]);
+        });
         rows.push([]);
+        totalCost += cst.total.value;
       });
       rows.push(['총 점유면적', Math.round(result.totals.area), 'm²']);
+      rows.push(['총 투자비', Math.round(totalCost), '억원', '',
+        '규모지수 n = ' + state.cost.exponent, '0.6승법 — 기준 투자비는 사용자 입력 가정값']);
       xp().downloadText(xp().toCsv(rows),
         '원료저장설비_계산서_' + xp().stamp() + '.csv', 'text/csv');
     }

@@ -10,6 +10,7 @@
 
   const req = (typeof require !== 'undefined');
   function appMod() { return req ? require('./rsd-app.js') : global.RSD.app; }
+  function costMod() { return req ? require('./rsd-cost.js') : global.RSD.cost; }
   function ctrls()   { return req ? require('./rsd-ui-controls.js') : global.RSD.controls; }
 
   function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
@@ -32,6 +33,16 @@
       path: function (key) { return 'materials.' + key + '.annualUsage'; },
       steps: [0.8, 0.9, 1.0, 1.1, 1.2, 1.3],
       mode: 'ratio'
+    },
+    costExponent: {
+      label: '규모지수 n',
+      unit: '-',
+      // 투자비 전용 — 면적은 전혀 움직이지 않고 투자비 곡선만 휜다.
+      // 0.6 이 표준이지만 설비 성격에 따라 0.5~0.8 범위를 쓴다.
+      path: function () { return 'cost.exponent'; },
+      steps: [0.50, 0.55, 0.60, 0.65, 0.70, 0.80],
+      mode: 'absolute',
+      costOnly: true      // 면적은 전혀 안 움직인다 — 면적 그래프를 그리면 평평한 선만 나온다
     },
     operatingEff: {
       label: '운영효율',
@@ -56,12 +67,15 @@
       app.setPath(s, path, val);
       const res = app.recompute(s);
       const e = res.materials[materialKey];
+      const cst = e ? costMod().costFor(e.type, e.sizing, s) : null;
       return {
         input: val,
         step: step,
         isBase: Math.abs(val - base) < 1e-9,
         area: e ? e.area : 0,
         totalArea: res.totals.area,
+        cost: cst ? cst.total.value : 0,
+        perTon: cst ? cst.perTon.value : 0,
         // 계단이 어디서 생기는지 — 열 수(야드) / 기수(Silo) / 셀 수(Shed)
         units: e ? unitsOf(e) : 0,
         unitLabel: e ? unitLabelOf(e) : ''
@@ -97,10 +111,17 @@
 
   function esc(s) { return ctrls().esc(s); }
 
-  function chart(sw, materialLabel) {
+  // metric 을 갈아끼워 면적/투자비 두 그래프에 같은 코드를 쓴다
+  const METRIC = {
+    area: { get: function (p) { return p.area; }, title: '점유면적 (m²)' },
+    cost: { get: function (p) { return p.cost; }, title: '투자비 (억원)' }
+  };
+
+  function chart(sw, materialLabel, metricKey) {
+    const M = METRIC[metricKey || 'area'];
     const pts = sw.points;
     if (!pts.length) return '';
-    const areas = pts.map(function (p) { return p.area; });
+    const areas = pts.map(M.get);
     const maxA = Math.max.apply(null, areas) * 1.08 || 1;
     const minA = 0;
     const x = function (i) { return PAD.l + (CW - PAD.l - PAD.r) * (i / Math.max(1, pts.length - 1)); };
@@ -119,11 +140,11 @@
     }
     // 꺾은선
     p.push('<polyline class="ch-line" points="' +
-      pts.map(function (pt, i) { return r2(x(i)) + ',' + r2(y(pt.area)); }).join(' ') + '"/>');
+      pts.map(function (pt, i) { return r2(x(i)) + ',' + r2(y(M.get(pt))); }).join(' ') + '"/>');
     // 점 · 가로축 · 설비 수량
     pts.forEach(function (pt, i) {
       p.push('<circle class="ch-dot' + (pt.isBase ? ' base' : '') + '" cx="' + r2(x(i)) +
-        '" cy="' + r2(y(pt.area)) + '" r="' + r2(FS * (pt.isBase ? 0.42 : 0.28)) + '"/>');
+        '" cy="' + r2(y(M.get(pt))) + '" r="' + r2(FS * (pt.isBase ? 0.42 : 0.28)) + '"/>');
       // 양 끝 점의 라벨은 가운데 정렬하면 그래프 밖(세로축 눈금 자리)으로 삐져나간다
       const anc = (i === 0) ? 'start' : (i === pts.length - 1 ? 'end' : 'middle');
       p.push('<text class="ch-ax" x="' + r2(x(i)) + '" y="' + r2(CH - PAD.b + FS * 1.3) +
@@ -132,7 +153,7 @@
       // 설비 수량은 **바뀌는 지점에만** 적는다. 점마다 붙이면 라벨끼리 겹치고,
       // 정작 보여줘야 할 "여기서 한 열이 더 필요해진다"가 묻힌다.
       if (i === 0 || pt.units !== pts[i - 1].units) {
-        p.push('<text class="ch-unit" x="' + r2(x(i)) + '" y="' + r2(y(pt.area) - FS * 1.0) +
+        p.push('<text class="ch-unit" x="' + r2(x(i)) + '" y="' + r2(y(M.get(pt)) - FS * 1.0) +
           '" font-size="' + r2(FS) + '" text-anchor="' + anc + '">' +
           pt.units + pt.unitLabel + '</text>');
       }
@@ -145,7 +166,7 @@
     }
     p.push('<text class="ch-title" x="' + r2(PAD.l) + '" y="' + r2(FS * 1.2) +
       '" font-size="' + r2(FS) + '" text-anchor="start">' +
-      esc(materialLabel + ' · ' + sw.label + ' 변화에 따른 점유면적 (m²)') + '</text>');
+      esc(materialLabel + ' · ' + sw.label + ' 변화에 따른 ' + M.title) + '</text>');
 
     return '<svg class="dwg chart" viewBox="0 0 ' + CW + ' ' + CH +
       '" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">' +
@@ -153,6 +174,7 @@
   }
 
   function fmtInput(sw, v) {
+    if (sw.varKey === 'costExponent') return v.toFixed(2);
     if (sw.varKey === 'operatingEff') return Math.round(v * 100) + '%';
     if (sw.varKey === 'annualUsage') return (v / 10000).toFixed(0) + '만';
     return String(Math.round(v));
@@ -245,6 +267,15 @@
     const mLabel = result.materials[view.material].material.label;
     const jumps = steps(sw);
 
+    // 규모지수는 '설비 1기 크기 ÷ 기준 용량' 이 1 이면 아무리 흔들어도 1^n = 1 이다.
+    // 평평한 선만 보여주고 끝내면 고장 난 것처럼 보이므로 왜 안 움직이는지 적어 준다.
+    const costs = sw.points.map(function (p) { return p.cost; });
+    const flatCost = Math.max.apply(null, costs) - Math.min.apply(null, costs) < 1e-9;
+    const flatNote = (VARS[view.varKey].costOnly && flatCost)
+      ? '<p class="dim">설비 1기 용량이 <b>기준 용량과 같아</b> 규모지수를 바꿔도 투자비가 변하지 않습니다 ' +
+        '(1<sup>n</sup> = 1). ④ Silo 탭의 1기 용량이나 ⑤ 타입 비교 탭의 기준 용량을 다르게 잡으면 곡선이 휩니다.</p>'
+      : '';
+
     const rows = sw.points.map(function (p) {
       const baseArea = (sw.points.filter(function (q) { return q.isBase; })[0] || sw.points[0]).area;
       const pct = baseArea > 0 ? (p.area / baseArea - 1) * 100 : 0;
@@ -253,13 +284,17 @@
         '<td class="n">' + p.units + ' ' + p.unitLabel + '</td>' +
         '<td class="n">' + fmt(p.area) + '</td>' +
         '<td class="n">' + pctTag(p.isBase ? 0 : pct) + '</td>' +
+        '<td class="n">' + fmt(p.cost) + '</td>' +
+        '<td class="n">' + fmt(p.perTon) + '</td>' +
         '<td class="n">' + fmt(p.totalArea) + '</td></tr>';
     }).join('');
 
     return '<div class="panel"><h3>민감도 분석</h3>' +
       '<p class="dim">한 변수만 흔들었을 때 소요 면적이 어떻게 움직이는지 봅니다. ' +
       '면적은 열 수·기수가 정수로 올림되므로 <b>계단형</b>으로 뜁니다 — ' +
-      '그 계단이 곧 “여기서 한 열이 더 필요해지는” 경계입니다.</p>' +
+      '그 계단이 곧 “여기서 한 열이 더 필요해지는” 경계입니다. ' +
+      '투자비는 0.6승법으로 환산하므로 면적과 다른 모양으로 움직입니다 — ' +
+      '기준 투자비는 ⑤ 타입 비교 탭에서 바꿉니다.</p>' +
       '<div class="view-btns">' + matBtns + '</div>' +
       '<div class="view-btns">' + varBtns + '</div></div>' +
 
@@ -270,10 +305,14 @@
               ' 로 늘어납니다 (면적 ' + fmt(j.area) + ' m²)';
           }))
         : '<p class="dim">이 범위에서는 설비 수량이 변하지 않습니다.</p>') +
-      '<div class="dwg-wrap">' + chart(sw, mLabel) + '</div>' +
+      flatNote +
+      (VARS[view.varKey].costOnly ? '' :
+        '<div class="dwg-wrap">' + chart(sw, mLabel, 'area') + '</div>') +
+      '<div class="dwg-wrap">' + chart(sw, mLabel, 'cost') + '</div>' +
       '<table class="sheet-table"><thead><tr>' +
       '<th>' + c.esc(sw.label) + '</th><th class="n">설비 수량</th>' +
       '<th class="n">해당 원료 면적 (m²)</th><th class="n">기준 대비</th>' +
+      '<th class="n">투자비 (억원)</th><th class="n">톤당 (원/t)</th>' +
       '<th class="n">전체 면적 (m²)</th></tr></thead><tbody>' + rows +
       '</tbody></table></section>' +
 

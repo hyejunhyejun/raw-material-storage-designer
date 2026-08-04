@@ -506,6 +506,8 @@
     const feas = cmp.TYPES.filter(function (t) { return r[t].feasible; });
     const areas = feas.map(function (t) { return r[t].area; });
     const maxArea = areas.length ? Math.max.apply(null, areas) : 1;
+    const maxCost = feas.length
+      ? Math.max.apply(null, feas.map(function (t) { return r[t].cost.total.value; })) : 0;
     // 세 타입을 같은 축척으로 그리려면 가장 큰 부지를 기준으로 삼는다
     const maxL = Math.max.apply(null, feas.map(function (t) { return r[t].footprint ? r[t].footprint.L : 1; }).concat([1]));
     const maxW = Math.max.apply(null, feas.map(function (t) { return r[t].footprint ? r[t].footprint.W : 1; }).concat([1]));
@@ -527,9 +529,11 @@
       const d = r[t];
       const pct = d.feasible ? Math.max(2, d.area / maxArea * 100) : 0;
       const isBest = (r.best === t);
+      const isCheap = (r.cheapest === t);
       return '<div class="cmp-card' + (d.feasible ? '' : ' cmp-na') + (isBest ? ' cmp-best' : '') + '">' +
         '<div class="cmp-head">' + c.esc(d.label) +
-        (isBest ? '<span class="cmp-tag">최소 면적</span>' : '') + '</div>' +
+        (isBest ? '<span class="cmp-tag">최소 면적</span>' : '') +
+        (isCheap ? '<span class="cmp-tag cmp-tag-cost">최소 투자비</span>' : '') + '</div>' +
         (d.feasible
           ? '<div class="cmp-area">' + c.num(Math.round(d.area)) + '<span class="tile-unit">m²</span></div>' +
             (d.vsYardPct === null ? '' :
@@ -543,22 +547,65 @@
             '<div class="cmp-dens">' + d.tPerM2.toFixed(2) +
             '<span class="tile-unit">t/m²</span>' +
             '<span class="cmp-dens-lbl">면적당 저장량</span></div>' +
+            // 투자비 — 면적만으로는 결론이 안 난다. Silo 는 면적이 가장 작지만
+            // 톤당 투자비는 가장 비싸다. 두 축을 나란히 놔야 판단이 된다.
+            '<div class="cmp-cost">' + c.num(Math.round(d.cost.total.value)) +
+            '<span class="tile-unit">억원</span>' +
+            (maxCost > 0
+              ? '<div class="cmp-bar cmp-bar-cost"><span style="width:' +
+                Math.max(1, d.cost.total.value / maxCost * 100).toFixed(1) + '%"></span></div>'
+              : '') +
+            '<span class="cmp-dens-lbl">톤당 ' +
+            c.num(Math.round(d.cost.perTon.value)) + ' 원/t</span></div>' +
             silhouette(d) +
             '<dl class="cmp-list">' +
             '<dt>구성</dt><dd>' + c.esc(d.spec) + '</dd>' +
             '<dt>운영효율</dt><dd>' + (d.eff * 100).toFixed(0) + ' %</dd>' +
             '<dt>대상 저장용량</dt><dd>' + c.num(Math.round(d.targetCapacity)) + ' t</dd>' +
             '<dt>설계 대상용량</dt><dd>' + c.num(Math.round(d.designCapacity)) + ' t</dd>' +
+            '<dt>설비 1' + c.esc(d.cost.unitCount.unit) + ' 투자비</dt><dd>' +
+            c.num(Math.round(d.cost.unitCost.value)) + ' 억원' +
+            '<span class="dim"> (규모지수 ' + d.cost.scaleFactor.value.toFixed(3) + ')</span></dd>' +
             '</dl>'
           : '<p class="cmp-note">' + c.esc(d.note) + '</p>') +
         '</div>';
     }).join('');
 
     return '<div class="panel"><h3>저장타입 비교</h3>' +
-      '<p class="dim">같은 원료·같은 재고일수를 세 타입으로 했을 때의 소요 면적입니다. ' +
+      '<p class="dim">같은 원료·같은 재고일수를 세 타입으로 했을 때의 소요 면적과 투자비입니다. ' +
       '대상 저장용량은 같지만 운영효율이 달라(야드·Shed 75 %, Silo 60 %) 설계 대상용량이 달라집니다.</p>' +
       '<div class="view-btns cmp-picker">' + picker + '</div>' +
-      '<div class="cmp-grid">' + cards + '</div></div>';
+      '<div class="cmp-grid">' + cards + '</div></div>' +
+      renderCostInputs(state);
+  }
+
+  // ---------- 투자비 가정 ----------
+  function renderCostInputs(state) {
+    const k = state.cost || {};
+    const row = function (type, label, unit) {
+      const cfg = k[type] || {};
+      return c.numberField({ path: 'cost.' + type + '.baseCost',
+        label: label + ' 기준 투자비', value: cfg.baseCost, unit: '억원', step: 10, min: 0, group: true,
+        hint: '설비 1' + unit + ' 기준' }) +
+        c.numberField({ path: 'cost.' + type + '.basisCapacity',
+          label: label + ' 기준 용량', value: cfg.basisCapacity, unit: 't', step: 10000, min: 1, group: true,
+          hint: '이 용량에서 위 투자비가 성립' });
+    };
+    return '<div class="panel"><h3>투자비 가정</h3>' +
+      '<p class="dim">설비 크기가 바뀌면 투자비는 <b>0.6승법(규모지수법)</b>으로 환산합니다 — ' +
+      '용량은 부피(3승)로 늘지만 비용은 표면적(2승)에 가깝게 늘기 때문입니다.</p>' +
+      '<p class="dim"><b>지수는 설비 1기의 크기에만</b> 적용합니다. ' +
+      '5만톤 Silo 를 2기 지으면 그냥 2배이고, 10만톤 Silo 1기여야 2<sup>0.6</sup> = 1.52배가 됩니다. ' +
+      '기수에까지 먹이면 “많이 지을수록 싸진다”는 잘못된 결론이 나옵니다.</p>' +
+      c.warnBox(['기준 투자비는 가정값입니다 — 실제 견적으로 반드시 교체하십시오']) +
+      '<div class="fields">' +
+      c.numberField({ path: 'cost.exponent', label: '규모지수 n', value: k.exponent,
+        unit: '-', step: 0.05, min: 0.1, hint: '0.6 = 화공·플랜트 표준' }) +
+      '</div>' +
+      '<div class="fields">' + row('yard', '오픈야드', '열') + '</div>' +
+      '<div class="fields">' + row('shed', 'Shed', '동') + '</div>' +
+      '<div class="fields">' + row('silo', 'Silo', '기') + '</div>' +
+      '</div>';
   }
 
   const api = {

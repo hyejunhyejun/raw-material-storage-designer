@@ -11,6 +11,7 @@
   const shedE = req ? require('./rsd-engine-shed.js')   : global.RSD.shed;
   const siloE = req ? require('./rsd-engine-silo.js')   : global.RSD.silo;
   const BD    = req ? require('./rsd-bands.js')         : global.RSD.bands;
+  const COST  = req ? require('./rsd-cost.js')          : global.RSD.cost;
   // rsd-app.js 는 이 파일보다 뒤에 로드되므로 지연 해석해야 한다.
   // 로드 시점에 잡으면 브라우저에서 undefined 가 된다 (node 의 require 는 즉시 해석돼 안 걸림).
   function appMod() { return req ? require('./rsd-app.js') : global.RSD.app; }
@@ -88,6 +89,10 @@
       // 면적당 저장밀도 — 같은 부지에서 얼마나 담느냐가 타입 선택의 핵심 지표다
       const tPerM2 = (area > 0) ? demand.targetCapacity.value / area : 0;
 
+      // 투자비 — 0.6승법. 면적만으로는 결론이 안 난다:
+      // Silo 는 면적이 가장 작지만 톤당 투자비는 가장 비싸다.
+      const cost = COST.costFor(type, sizing, state);
+
       out[type] = {
         type: type,
         label: TYPE_LABEL[type],
@@ -101,7 +106,8 @@
         footprint: fp,
         spec: spec,
         sizing: sizing,
-        demand: demand
+        demand: demand,
+        cost: cost
       };
 
       if (feasible && area > 0 && area < bestArea) { bestArea = area; bestKey = type; }
@@ -113,7 +119,17 @@
       out[t].vsYardPct = (baseArea > 0) ? (out[t].area / baseArea * 100) : null;
     });
 
-    out.best = bestKey;
+    // 최소 투자비는 최소 면적과 다를 수 있다 — 둘 다 보여주고 판단은 사람이 한다.
+    // 한쪽만 '최적' 으로 표시하면 트레이드오프가 숨는다.
+    let cheapest = null, cheapCost = Infinity;
+    TYPES.forEach(function (t) {
+      if (!out[t].feasible || !(out[t].area > 0)) return;
+      const c = out[t].cost.total.value;
+      if (c < cheapCost) { cheapCost = c; cheapest = t; }
+    });
+
+    out.best = bestKey;          // 최소 면적
+    out.cheapest = cheapest;     // 최소 투자비
     return out;
   }
 

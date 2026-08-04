@@ -341,4 +341,54 @@ function sharedState() {
     '정상 비례면 경고가 없어야 한다');
 }
 
+// ===== 원료가 하나뿐이면 '모아 짓기' 와 '따로 짓기' 가 같은 건물이어야 한다 =====
+// 담을 원료가 하나면 모아 짓고 말고 할 것이 없다. 공용 쪽만 셀 길이를 고정하면
+// 같은 조건인데 형상이 갈린다.
+{
+  ['grow', 'add'].forEach(function (mode) {
+    const build = function (buildingMode) {
+      const s = app.initialState();
+      Object.keys(s.materials).forEach(function (k) { s.materials[k].enabled = (k === 'coal'); });
+      s.materials.coal.storageType = 'shed';
+      s.shed.sizingMode = mode;
+      s.shed.buildingMode = buildingMode;
+      const r = app.recompute(s);
+      const z = (buildingMode === 'shared') ? r.sharedShed.sizing : r.materials.coal.sizing;
+      return {
+        cells: z.cells.length,
+        cellLen: z.cells[0].length.value,
+        length: z.length.value,
+        area: z.area.value,
+        capacity: z.totalCapacity.value
+      };
+    };
+    assert.deepStrictEqual(build('shared'), build('separate'),
+      mode + ' 모드: 원료 1종이면 모아 짓기 = 따로 짓기');
+  });
+}
+
+// ===== 공용 셀 길이도 '셀 개수 고정' 규칙을 따른다 =====
+{
+  const s = sharedState();
+  s.shed.sizingMode = 'grow';
+  const cells = app.recompute(s).sharedShed.sizing.cells;
+  assert.ok(cells.length <= s.shed.cellsPerBayCount * s.shed.bays,
+    '목표 셀 수(' + (s.shed.cellsPerBayCount * s.shed.bays) + ') 를 넘지 않아야 한다');
+  const lens = cells.map(function (c) { return c.length.value; })
+    .filter(function (v, i, a) { return a.indexOf(v) === i; });
+  assert.strictEqual(lens.length, 1, '공용 Shed 의 셀 길이는 한 가지');
+}
+
+// ===== bay 길이가 서로 같아야 한다 =====
+// 짧은 bay 의 남는 자리는 어차피 건물 안의 빈 땅이다.
+{
+  const cells = app.recompute(sharedState()).sharedShed.sizing.cells;
+  const perBay = {};
+  cells.forEach(function (c) { perBay[c.bay] = (perBay[c.bay] || 0) + c.length.value; });
+  const vals = Object.keys(perBay).map(function (k) { return perBay[k]; });
+  vals.forEach(function (v) {
+    assert.ok(Math.abs(v - vals[0]) < 1e-9, 'bay 길이가 같아야 한다: ' + vals.join(', '));
+  });
+}
+
 console.log('OK: shed-shared');
