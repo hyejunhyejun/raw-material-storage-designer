@@ -437,9 +437,9 @@
           const bayCz = zc + SL.wallCenter + sg * (cw / 2 + (Lb + La) / 2);
           for (let k = 0; k < she.sprPerBay; k++) {
             const spr = E3.makeSPR({
-              span: (Lb + La) * 0.95, height: wallTop * 0.86,
-              slopeLen: La * 0.92, slopeAngle: Math.atan2(sec.h1.value, La),
-              mat: steelMat, accentMat: accentMat
+              Lb: Lb, La: La, h1: sec.h1.value, wallTop: wallTop,
+              mat: steelMat, accentMat: accentMat,
+              yellowMat: yellowMat, railMat: darkMat, cabMat: motorMat
             });
             const zoneW = b.length / she.sprPerBay;
             const cx = -b.length / 2 + zoneW * (k + 0.5);

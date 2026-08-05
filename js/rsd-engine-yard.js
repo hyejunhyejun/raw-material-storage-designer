@@ -81,6 +81,20 @@
       totalCapacity = Q * rows;
     }
 
+    // 열은 통으로만 늘어난다 — 1열이 야드 길이 전체를 쓰므로,
+    // 필요량이 조금만 넘어도 한 열을 통째로 더 지어 크게 남아돈다.
+    // 숫자만 보면 '면적이 이만큼 필요하다' 로 읽히므로 남는다는 걸 알려 준다.
+    if (rows > 0 && input.designCapacity > 0) {
+      const over = (O * rows) / input.designCapacity;
+      if (over >= 1.5) {
+        warnings.push(
+          `확보 용량이 필요량의 ${over.toFixed(1)}배입니다 ` +
+          `(${rows}열 × ${fmt(Math.round(O))} t vs 필요 ${fmt(Math.round(input.designCapacity))} t). ` +
+          `열은 통으로만 늘어나므로 야드 길이 A 를 줄이면 면적을 아낄 수 있습니다`
+        );
+      }
+    }
+
     // 역방향: 일일 사용량이 주어지면 최종 적치가능 재고일수를 역산
     let achievedStockDays = 0;
     if (input.daily && input.daily > 0) {

@@ -14,7 +14,7 @@
       c.numberField({ path: 'yard.yardWidth',    label: '야드 폭 (D)',     value: y.yardWidth,    unit: 'm', step: 1,  min: 0 }) +
       c.numberField({ path: 'yard.roadWidth',    label: '차량 통행로 (E)', value: y.roadWidth,    unit: 'm', step: 1,  min: 0,
         hint: '양측 합계 (한쪽 ' + (y.roadWidth / 2) + ' m)' }) +
-      c.numberField({ path: 'yard.operatingEff', label: '적치효율 (P)',    value: y.operatingEff, unit: '-', step: 0.05, min: 0, hint: '0.75 = 75%' }) +
+      c.numberField({ path: 'yard.operatingEff', label: '적치효율 (P)',    value: y.operatingEff, unit: '-', step: 0.05, min: 0.01, hint: '0.75 = 75%' }) +
       c.numberField({ path: 'yard.srBandWidth',  label: '이동기기 및 Belt Conveyor 면적 폭', value: y.srBandWidth,  unit: 'm', step: 1,  min: 0 }) +
       '</div>' +
       '<p class="dim">파일 수 (I) · 파일간 간격 (J) 은 원료마다 다르므로 ' +
@@ -66,7 +66,7 @@
       // 공통 파라미터가 아니라 원료 단위로 입력받는다
       '<div class="fields"><h4 class="fields-title">' + c.esc(m.label) + ' 파일 제원</h4>' +
       c.numberField({ path: 'materials.' + m.key + '.pileCount', label: '파일 수 (I)',
-        value: m.pileCount, unit: '개', step: 1, min: 1 }) +
+        value: m.pileCount, unit: '개', step: 1, min: 1, max: 100 }) +
       c.numberField({ path: 'materials.' + m.key + '.pileGap', label: '파일간 간격 (J)',
         value: m.pileGap, unit: 'm', step: 1, min: 0 }) +
       '</div>' +

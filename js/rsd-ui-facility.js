@@ -31,7 +31,7 @@
       c.numberField({ path: 'shed.La', label: '개방측 적치거리 (La)', value: s.La, unit: 'm', step: 1, min: 1 }) +
       c.numberField({ path: 'shed.Lb', label: '옹벽측 적치거리 (Lb)', value: s.Lb, unit: 'm', step: 0.5, min: 0 }) +
       c.numberField({ path: 'shed.bottomSlope', label: '하부 경사각', value: s.bottomSlope, unit: '°', step: 0.1, min: 0 }) +
-      c.numberField({ path: 'shed.bays', label: 'bay 수', value: s.bays, unit: '열', step: 1, min: 1 }) +
+      c.numberField({ path: 'shed.bays', label: 'bay 수', value: s.bays, unit: '열', step: 1, min: 1, max: 20 }) +
       c.selectField({ path: 'shed.buildingMode', label: '건물 구성', value: s.buildingMode,
         options: [{ value: 'separate', label: '원료별로 따로 짓기' },
                   { value: 'shared',   label: '한 동에 모아 짓기 (공용 Shed)' }] }) +
@@ -41,7 +41,7 @@
                   { value: 'manual', label: '셀별 길이 직접 입력' }] }) +
       c.numberField({ path: 'shed.cellsPerBayCount', label: 'bay 당 셀 수',
         value: (s.sizingMode === 'add' ? autoCells : s.cellsPerBayCount), unit: '개', step: 1, min: 1,
-        disabled: (s.sizingMode === 'add'), disabledHint: '셀 길이에서 자동 산정' }) +
+        disabled: (s.sizingMode === 'add'), disabledHint: '셀 길이에서 자동 산정', max: 60 }) +
       c.numberField({ path: 'shed.cellLength',
         label: (s.sizingMode === 'manual' ? '새 셀 기본 길이' : '셀 길이'),
         value: (s.sizingMode === 'grow' ? autoLen : s.cellLength), unit: 'm', step: 0.5, min: 1,
@@ -53,7 +53,7 @@
       c.numberField({ path: 'shed.maintZone', label: '정비존 (편측)', value: s.maintZone, unit: 'm', step: 0.25, min: 0 }) +
       c.numberField({ path: 'shed.totalHeight', label: '전고', value: s.totalHeight, unit: 'm', step: 0.5, min: 1 }) +
       c.numberField({ path: 'shed.operatingEff', label: '운영효율', value: s.operatingEff, unit: '-', step: 0.05, min: 0.01, hint: '0.75 = 75%' }) +
-      c.numberField({ path: 'shed.sprPerBay', label: 'SPR (면당)', value: s.sprPerBay, unit: '기', step: 1, min: 0 }) +
+      c.numberField({ path: 'shed.sprPerBay', label: 'SPR (면당)', value: s.sprPerBay, unit: '기', step: 1, min: 0, max: 20 }) +
       '</div>' +
       renderCellEditor(state, result) +
       '<details class="help"><summary>파라미터가 도면의 어디인지 보기</summary>' +
@@ -330,8 +330,8 @@
       c.numberField({ path: 'silo.sideMargin', label: '점유폭 여유', value: s.sideMargin, unit: 'm', step: 1, min: 0,
         disabled: !derive, disabledHint: '점유 폭에서 역산됨' }) +
       c.numberField({ path: 'silo.corridorWidth', label: '상부 Corridor', value: s.corridorWidth, unit: 'm', step: 1, min: 0 }) +
-      c.numberField({ path: 'silo.rows', label: '배치 열 수', value: s.rows, unit: '열', step: 1, min: 1 }) +
-      c.numberField({ path: 'silo.trippers', label: 'Tripper', value: s.trippers, unit: '기', step: 1, min: 0 }) +
+      c.numberField({ path: 'silo.rows', label: '배치 열 수', value: s.rows, unit: '열', step: 1, min: 1, max: 20 }) +
+      c.numberField({ path: 'silo.trippers', label: 'Tripper', value: s.trippers, unit: '기', step: 1, min: 0, max: 20 }) +
       c.numberField({ path: 'silo.operatingEff', label: '운영효율', value: s.operatingEff, unit: '-', step: 0.05, min: 0.01, hint: '0.60 = 60%' }) +
       '</div>' +
       '<details class="help"><summary>파라미터가 도면의 어디인지 보기</summary>' +
@@ -579,6 +579,20 @@
       renderCostInputs(state);
   }
 
+  // 기준 투자비 0 은 '싸다' 가 아니라 '안 넣었다' 다. 그런데 화면에는
+  // 그냥 최소 투자비로 뜨므로, 0 인 타입이 있으면 그 사실을 먼저 말해 준다.
+  function costWarnings(k) {
+    const out = ['기준 투자비는 가정값입니다 — 실제 견적으로 반드시 교체하십시오'];
+    const zero = ['yard', 'shed', 'silo'].filter(function (t) {
+      return !((k[t] || {}).baseCost > 0);
+    }).map(function (t) { return ({ yard: '오픈야드', shed: 'Shed', silo: 'Silo' })[t]; });
+    if (zero.length) {
+      out.push(zero.join(' · ') + ' 의 기준 투자비가 0 이라 항상 최소 투자비로 표시됩니다. ' +
+        '오픈야드도 정지·포장·배수·우수처리 비용이 들므로, 0 인 채로는 투자비 비교가 성립하지 않습니다');
+    }
+    return out;
+  }
+
   // ---------- 투자비 가정 ----------
   function renderCostInputs(state) {
     const k = state.cost || {};
@@ -597,10 +611,10 @@
       '<p class="dim"><b>지수는 설비 1기의 크기에만</b> 적용합니다. ' +
       '5만톤 Silo 를 2기 지으면 그냥 2배이고, 10만톤 Silo 1기여야 2<sup>0.6</sup> = 1.52배가 됩니다. ' +
       '기수에까지 먹이면 “많이 지을수록 싸진다”는 잘못된 결론이 나옵니다.</p>' +
-      c.warnBox(['기준 투자비는 가정값입니다 — 실제 견적으로 반드시 교체하십시오']) +
+      c.warnBox(costWarnings(k)) +
       '<div class="fields">' +
       c.numberField({ path: 'cost.exponent', label: '규모지수 n', value: k.exponent,
-        unit: '-', step: 0.05, min: 0.1, hint: '0.6 = 화공·플랜트 표준' }) +
+        unit: '-', step: 0.05, min: 0.1, max: 2, hint: '0.6 = 화공·플랜트 표준 (0.4~1.0)' }) +
       '</div>' +
       '<div class="fields">' + row('yard', '오픈야드', '열') + '</div>' +
       '<div class="fields">' + row('shed', 'Shed', '동') + '</div>' +

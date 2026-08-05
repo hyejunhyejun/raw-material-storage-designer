@@ -61,9 +61,28 @@
       // **깊은 병합**이라야 옛 저장파일도 열린다. 얕게 덮으면
       // materials 가 통째로 갈려서, 나중에 추가된 항목(원료별 파일 수 등)이
       // undefined 인 채로 화면에 들어간다 — 입력칸에 "undefined" 가 뜬다.
-      replace: function (next) { state = deepMerge(seed, next); notify(); },
+      replace: function (next) { state = sanitize(deepMerge(seed, next), seed); notify(); },
       reset: function () { state = deepCopy(seed); notify(); }
     };
+  }
+
+  // 0 이나 음수가 들어가면 계산이 성립하지 않는 값들 — 여기서 되돌린다.
+  //
+  // 상태는 localStorage 에 자동 저장되므로, 한 번 들어간 잘못된 값은 새로고침해도
+  // 그대로 살아나 도구가 계속 죽는다. 입력 단에서 막는 것만으로는
+  // **이미 저장된** 값을 구제할 수 없어 여기서도 한 번 더 본다.
+  const POSITIVE = [
+    'operatingDays',
+    'yard.operatingEff', 'shed.operatingEff', 'silo.operatingEff'
+  ];
+  function sanitize(state, seed) {
+    POSITIVE.forEach(function (path) {
+      const v = getPath(state, path);
+      if (typeof v !== 'number' || !isFinite(v) || v <= 0) {
+        setPath(state, path, getPath(seed, path));
+      }
+    });
+    return state;
   }
 
   // 부팅 기본 시나리오 — 조강 약 1,000만 t/년 일관제철소
@@ -414,9 +433,25 @@
   function xp()      { return req ? require('./rsd-export.js')  : global.RSD.exporter; }
 
   // ① 원료·용량 탭
+  // 아직 아무것도 안 건드린 상태인가 — 화면에 뜬 숫자가 '예시' 인지 '내 검토안' 인지
+  // 알려주기 위해서다. 처음 여는 사람에게는 채워진 입력칸이 실제 검토 결과로 보인다.
+  function isPristine(state) {
+    try { return JSON.stringify(state) === JSON.stringify(initialState()); }
+    catch (e) { return false; }
+  }
+
   function renderMaterialTab(state, result) {
     const c = ctrls();
     const blocks = [];
+
+    if (isPristine(state)) {
+      blocks.push('<div class="panel intro"><h3>예시 시나리오로 시작합니다</h3>' +
+        '<p class="dim">지금 화면의 숫자는 <b>조강 약 1,000만 t/년 일관제철소</b>를 가정한 예시입니다. ' +
+        '아래 값을 검토 대상 조건으로 바꾸면 모든 탭의 계산·도면·3D 가 함께 따라옵니다. ' +
+        '값을 하나라도 바꾸면 이 안내는 사라집니다.</p>' +
+        '<p class="dim">입력값은 브라우저에 자동 저장되므로 새로고침해도 남습니다. ' +
+        '처음 상태로 돌리려면 오른쪽 위 <b>초기화</b> 를 누르십시오.</p></div>');
+    }
 
     blocks.push('<div class="panel"><h3>공통 조건</h3><div class="fields">' +
       c.numberField({ path: 'operatingDays', label: '연간 가동일수', value: state.operatingDays, unit: '일', step: 1, min: 1 }) +
@@ -557,7 +592,17 @@
 
     function paint() {
       const state = store.get();
-      const result = recompute(state);
+      let result;
+      // 계산이 터져도 화면은 살아 있어야 한다. 예외가 그대로 올라가면
+      // main 이 빈 채로 남아 사용자가 되돌릴 방법조차 없어진다 (새로고침뿐).
+      try { result = recompute(state); }
+      catch (err) {
+        nav.innerHTML = renderTabs(state.activeTab);
+        main.innerHTML = '<section class="card empty">' +
+          '<b>입력값으로 계산할 수 없습니다</b><br>' + ctrls().esc(err.message) +
+          '<br><span class="dim">값을 되돌리거나 상단 “초기화” 를 누르십시오.</span></section>';
+        return;
+      }
       nav.innerHTML = renderTabs(state.activeTab);
       main.innerHTML = renderBody(state, result);
 
@@ -698,6 +743,13 @@
     });
 
     // 원료별 3D 표시 토글
+    // 민감도 슬라이더 — 끄는 동안 따라와야 하므로 change 가 아니라 input 을 듣는다.
+    // 전체를 다시 그리지 않고 마커와 요약만 갈아끼운다 (매 틱 재렌더는 화면이 튄다).
+    main.addEventListener('input', function (e) {
+      const sl = e.target.closest('[data-sens-slider]');
+      if (sl) uiSens().applySlider(sl.value);
+    });
+
     main.addEventListener('change', function (e) {
       const cb = e.target.closest('[data-mat]');
       if (!cb) return;
@@ -732,8 +784,20 @@
         if (n === null) { paint(); return; }
         const lo = Number(el.getAttribute('data-min'));
         value = isFinite(lo) && el.getAttribute('data-min') !== '' ? Math.max(lo, n) : n;
+      } else if (el.type === 'number') {
+        // min 을 여기서 강제한다. <input min> 은 스피너만 막을 뿐 직접 입력은 그대로 통과하고,
+        // 운영효율 0 같은 값이 계산 엔진까지 내려가면 예외가 나 화면이 통째로 죽는다.
+        // 입력이 들어오는 길목이 여기 하나뿐이므로 방어도 여기서 한 번만 하면 된다.
+        const n = Number(el.value);
+        if (!isFinite(n)) { paint(); return; }   // 문자·빈 칸 → 이전 값 유지
+        const lo = Number(el.getAttribute('min'));
+        const hi = Number(el.getAttribute('max'));
+        value = (el.hasAttribute('min') && isFinite(lo)) ? Math.max(lo, n) : n;
+        // 상한도 지킨다. 수량 칸(bay 수·기수·셀 수)은 그대로 반복 횟수가 되므로
+        // 자릿수 하나만 잘못 쳐도 배열을 수억 개 만들다 브라우저가 죽는다.
+        if (el.hasAttribute('max') && isFinite(hi)) value = Math.min(hi, value);
       } else {
-        value = (el.type === 'number') ? Number(el.value) : el.value;
+        value = el.value;
       }
       store.set(path, value);
 
@@ -929,7 +993,7 @@
   const api = {
     createStore: createStore, initialState: initialState, recompute: recompute,
     setPath: setPath, getPath: getPath, buildCells: buildCells, yardInput: yardInput,
-    buildSharedCells: buildSharedCells,
+    buildSharedCells: buildSharedCells, sanitize: sanitize, isPristine: isPristine,
     deepMerge: deepMerge,
     resizeCells: resizeCells,
     enabledKeys: enabledKeys, SCENARIO: SCENARIO,

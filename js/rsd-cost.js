@@ -43,7 +43,9 @@
     const uLabel = UNIT_LABEL[type] || '기';
 
     const factor = scaleFactor(unitCap, basis, n);
-    const unitCost = base * factor;
+    // 기준 투자비가 0 이면(오픈야드 가정) 규모지수가 무엇이든 0 이다.
+    // 그냥 곱하면 0 × Infinity = NaN 이 되어 화면에 NaN 이 뜬다.
+    const unitCost = (base === 0) ? 0 : base * factor;
     const total = unitCost * count;
     const totalCapacity = unitCap * count;
     // 톤당 투자비 — 타입 선택의 실제 판단 지표. 억원/톤은 너무 작으므로 원/톤으로.

@@ -300,40 +300,144 @@
 
   // ---------- Semi Portal Reclaimer (Shed) ----------
   //
-  // 한쪽은 지면 레일, 반대쪽은 중앙 옹벽 상부 레일에 지지되는 반포털.
-  // 원료 빗변을 따라 경사진 스크레이퍼 체인 붐이 긁어 내린다.
+  // 참조 사진 기준 실루엣:
+  //   옹벽 상부 레일 + 지면 레일 두 높이에 걸쳐 서는 **반**포털
+  //   (양쪽 다 지면이면 그냥 포털이다 — 한쪽이 벽 위에 올라앉아 '반' 이 붙는다)
+  //   상부 수평 박스거더 → 그 아래 행거로 매달린 경사 스크레이퍼 체인 붐
+  //   붐은 원료 개방측 빗변을 따라 내려가 하단 구동헤드에서 불출 B/C 로 떨군다
+  //   구동헤드 옆 운전실, 붐 위 통로·난간(노랑)
+  //
+  // 좌표: −z = 옹벽측(높은 쪽), +z = 개방측(지면 레일). 붐은 능선에서 개방측 끝으로 내려간다.
   function makeSPR(o) {
     const g = new THREE.Group();
-    const mat = o.mat, span = o.span, h = o.height;
+    const mat = o.mat, accent = o.accentMat;
+    const yellow = o.yellowMat || accent;
+    const Lb = o.Lb, La = o.La, h1 = o.h1;
+    const span = Lb + La;
+    const zWall = -span / 2;            // 옹벽측 레일
+    const zRidge = zWall + Lb;          // 능선 (적치 최고점)
+    const zToe = span / 2;              // 개방측 파일 끝 = 지면 레일
+    const wallTop = o.wallTop;
+    const bridgeY = Math.max(wallTop, h1) + 3.5;
+    const slopeAngle = Math.atan2(h1, La);
+    const slopeLen = Math.sqrt(La * La + h1 * h1);
+    const w = o.width || 3.6;           // 기계 폭 (주행방향)
 
-    // 지면측 다리
-    const leg = shade(box(3.4, h, 2.2, mat));
-    leg.position.set(0, h / 2, span / 2);
+    // --- 주행 대차: 지면 레일(개방측) ---
+    const bogie = shade(box(w + 1.6, 1.8, 3.0, mat));
+    bogie.position.set(0, 0.9, zToe);
+    g.add(bogie);
+    [-w / 2, w / 2].forEach(function (x) {
+      const wh = cyl(0.9, 0.7, o.railMat || mat, 12);
+      wh.rotation.z = Math.PI / 2;
+      wh.position.set(x, 0.9, zToe);
+      g.add(wh);
+    });
+    // --- 주행 대차: 옹벽 상부 레일 (반포털의 '반') ---
+    const bogie2 = shade(box(w + 0.8, 1.4, 2.4, mat));
+    bogie2.position.set(0, wallTop + 0.7, zWall);
+    g.add(bogie2);
+
+    // --- 포털 다리 ---
+    // 지면측은 브리지까지 통으로 올라가고, 옹벽측은 벽 위에서 짧게 받친다
+    const legH = bridgeY - 1.8;
+    const leg = shade(box(w, legH, 2.4, mat));
+    leg.position.set(0, 1.8 + legH / 2, zToe);
     g.add(leg);
-    // 옹벽측 짧은 다리 (옹벽 상부에 얹힘)
-    const leg2 = shade(box(3.0, h * 0.42, 2.0, mat));
-    leg2.position.set(0, h * 0.79, -span / 2);
-    g.add(leg2);
-    // 상부 브리지
-    const bridge = shade(box(3.0, 1.6, span, mat));
-    bridge.position.set(0, h, 0);
+    const leg2H = bridgeY - wallTop - 1.4;
+    if (leg2H > 0.5) {
+      const leg2 = shade(box(w * 0.85, leg2H, 2.0, mat));
+      leg2.position.set(0, wallTop + 1.4 + leg2H / 2, zWall);
+      g.add(leg2);
+    }
+
+    // --- 상부 수평 박스거더 ---
+    const bridge = shade(box(w * 0.8, 1.8, span, mat));
+    bridge.position.set(0, bridgeY, 0);
     g.add(bridge);
 
-    // 스크레이퍼 체인 붐 — 원료 빗변을 따라 경사
-    const boom = shade(box(2.2, 1.2, o.slopeLen, mat));
-    boom.position.set(0, h * 0.56, 0.6);
-    boom.rotation.x = -o.slopeAngle;
+    // --- 경사 스크레이퍼 붐 ---
+    // 능선 위에서 시작해 개방측 끝까지. 원료면보다 살짝 띄워 얹는다.
+    const boom = new THREE.Group();
+    boom.position.set(0, h1 + 1.4, zRidge);
+    boom.rotation.x = slopeAngle;       // +z 로 갈수록 내려간다
     g.add(boom);
-    // 체인 스크레이퍼 날 — 붐을 따라 흐른다
-    for (let i = 0; i < 7; i++) {
-      const bl = shade(box(2.6, 0.5, 0.8, o.accentMat));
-      bl.position.set(0, 0.9, -o.slopeLen / 2 + (o.slopeLen / 7) * i);
+
+    // 경사 박스거더 — 사진에서 가장 눈에 띄는 부재. 얇은 트러스가 아니라 두툼한 상자다.
+    const girder = shade(box(w * 0.9, 2.4, slopeLen, mat));
+    girder.position.set(0, 0, slopeLen / 2);
+    boom.add(girder);
+    // 스크레이퍼가 긁는 하부 트로프 (거더 아래로 살짝 내민다)
+    const trough = shade(box(w * 1.1, 0.5, slopeLen, mat));
+    trough.position.set(0, -1.45, slopeLen / 2);
+    boom.add(trough);
+    // 통로·난간 — 붐 옆으로 길게 이어지는 노란 난간
+    [-w * 0.62, w * 0.62].forEach(function (x) {
+      const rl = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, slopeLen), yellow);
+      rl.position.set(x, 1.9, slopeLen / 2);
+      boom.add(rl);
+      const deck = shade(box(0.5, 0.16, slopeLen, mat));
+      deck.position.set(x, 1.2, slopeLen / 2);
+      boom.add(deck);
+      // 난간 지주
+      const nP = Math.max(3, Math.round(slopeLen / 6));
+      for (let i = 0; i <= nP; i++) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.7, 0.12), yellow);
+        post.position.set(x, 1.55, (slopeLen / nP) * i);
+        boom.add(post);
+      }
+    });
+
+    // 체인 스크레이퍼 날 — 트로프를 따라 아래로 흘러 원료를 끌어내린다
+    const chain = new THREE.Group();
+    chain.position.set(0, -1.05, slopeLen / 2);
+    boom.add(chain);
+    const nBlade = Math.max(6, Math.round(slopeLen / 4));
+    for (let i = 0; i < nBlade; i++) {
+      const bl = shade(box(w * 1.15, 0.7, 0.5, accent));
       bl.userData.anim = {
-        kind: 'flow', axis: 'z', len: o.slopeLen,
-        speed: 5, start: (o.slopeLen / 7) * i
+        kind: 'flow', axis: 'z', len: slopeLen,
+        speed: 5, start: (slopeLen / nBlade) * i
       };
-      boom.add(bl);
+      chain.add(bl);
     }
+
+    // --- 행거 --- 상부 거더에서 붐을 매단다 (사진의 거더 아래 촘촘한 기둥들)
+    const nHang = Math.max(2, Math.round(La / 8));
+    for (let i = 1; i <= nHang; i++) {
+      const u = i / (nHang + 1);
+      const z = zRidge + La * u;
+      const yTop = bridgeY - 0.9;
+      const yBot = h1 * (1 - u) + 2.8;
+      const hh = yTop - yBot;
+      if (hh <= 0.5) continue;
+      const rod = shade(box(0.5, hh, 0.5, mat));
+      rod.position.set(0, yBot + hh / 2, z);
+      g.add(rod);
+    }
+
+    // --- 구동 헤드 --- 붐 하단. 긁어 내린 원료를 여기서 불출 B/C 로 떨군다.
+    // 붐 끝은 (y = 1.4, z = zToe) 로 떨어진다 — 지면 레일 바로 위다.
+    // 대형 구동 드럼 (사진의 빨간 드럼) 은 그 끝에 노출돼 있다.
+    const drum = cyl(1.7, w * 1.4, accent, 18);
+    drum.rotation.z = Math.PI / 2;
+    drum.position.set(0, 2.0, zToe - 0.8);
+    drum.userData.anim = { kind: 'spin', axis: 'x', speed: 1.4 };
+    g.add(drum);
+    // 구동 하우스 — 다리 바깥쪽에 붙는다 (원료 안에 묻히면 보이지 않는다)
+    const head = shade(box(w * 1.15, 4.2, 4.0, mat));
+    head.position.set(0, 4.6, zToe + 2.2);
+    g.add(head);
+    // 슈트 — 헤드에서 하부 불출 B/C 로 떨어지는 통로
+    const chute = shade(box(w * 0.7, 3.4, 1.8, mat));
+    chute.position.set(0, 1.7, zToe + 4.2);
+    g.add(chute);
+
+    // --- 운전실 --- 구동헤드 옆
+    const cab = shade(box(2.6, 3.0, 3.0, o.cabMat || accent));
+    cab.position.set(w * 0.6 + 1.4, 5.2, zToe + 2.2);
+    g.add(cab);
+
     return g;
   }
 

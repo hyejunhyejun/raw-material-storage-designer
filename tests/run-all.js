@@ -27,6 +27,7 @@ const tests = [
   'shed-manual.test.js',
   'shed-shared.test.js',
   'cost.test.js',
+  'input-guard.test.js',
   'wiring.test.js',
   'cross-check.test.js',
   'consistency.test.js',

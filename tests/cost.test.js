@@ -135,4 +135,16 @@ function near(actual, expected, tol, label) {
     'Shed 1동 용량 = 건물 전량');
 }
 
+// ===== 기준 투자비 0 × 극단 규모지수 → NaN 이 나오면 안 된다 =====
+// 오픈야드는 기준 투자비가 0 이다. 0 × Infinity = NaN 이라 화면에 NaN 이 뜬다.
+{
+  const c = cost.computeCost({
+    type: 'yard', config: { basisCapacity: 100000, baseCost: 0 },
+    exponent: 1e12, unitCapacity: 137088, unitCount: 4
+  });
+  assert.ok(Number.isFinite(c.total.value), '총 투자비가 NaN 이면 안 된다: ' + c.total.value);
+  assert.ok(Number.isFinite(c.perTon.value), '톤당 투자비가 NaN 이면 안 된다');
+  near(c.total.value, 0, 1e-12, '기준 투자비 0 이면 지수와 무관하게 0');
+}
+
 console.log('OK: cost');

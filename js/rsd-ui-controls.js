@@ -22,6 +22,7 @@
   function numberField(o) {
     const step = (o.step === undefined) ? 'any' : o.step;
     const min = (o.min === undefined) ? '' : ' min="' + o.min + '"';
+    const max = (o.max === undefined) ? '' : ' max="' + o.max + '"';
     // 다른 입력에서 자동 산정되는 값은 잠그고, 계산 결과를 그대로 보여준다.
     // 두 입력이 서로를 결정하는 관계라면 한쪽만 열려 있어야 혼동이 없다.
     const off = o.disabled ? ' disabled' : '';
@@ -32,7 +33,7 @@
         (o.min === undefined ? '' : o.min) + '" data-path="' + esc(o.path) +
         '" value="' + esc(grouped(o.value)) + '"' + off + '>'
       : '<input type="number" data-path="' + esc(o.path) + '" value="' + o.value +
-        '" step="' + step + '"' + min + off + '>';
+        '" step="' + step + '"' + min + max + off + '>';
     return '<label class="fld' + (o.disabled ? ' fld-off' : '') + '">' +
       '<span class="fld-label">' + esc(o.label) + '</span>' +
       '<span class="fld-input">' + input +

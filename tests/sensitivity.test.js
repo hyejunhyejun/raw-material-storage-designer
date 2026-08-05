@@ -14,7 +14,10 @@ const state = app.initialState();
 // ===== 재고일수를 늘리면 면적은 줄지 않는다 (단조 증가) =====
 {
   const sw = sens.sweep(state, 'ironOre', 'stockDays');
-  assert.strictEqual(sw.points.length, sens.VARS.stockDays.steps.length);
+  assert.strictEqual(sw.points.length,
+    sens.VARS.stockDays.range(state.materials.ironOre.stockDays).length);
+  // 슬라이더로 훑으려면 눈금이 촘촘해야 한다 — 성기면 계단이 눈금 사이에 숨는다
+  assert.ok(sw.points.length >= 20, '눈금이 20개는 넘어야 한다 (현재 ' + sw.points.length + ')');
   for (let i = 1; i < sw.points.length; i++) {
     assert.ok(sw.points[i].area >= sw.points[i - 1].area,
       '재고일수 ' + sw.points[i].input + '일에서 면적이 줄었다 (' +
@@ -34,7 +37,8 @@ const state = app.initialState();
       '운영효율 ' + sw.points[i].input + '에서 면적이 늘었다');
   }
   // 효율은 저장타입의 설정이므로 절대값으로 훑는다
-  assert.strictEqual(sw.points[0].input, 0.50);
+  assert.strictEqual(sw.points[0].input, 0.40);
+  assert.ok(sw.points[sw.points.length - 1].input >= 0.95 - 1e-9);
 }
 
 // ===== 면적은 계단형이다 — 열 수가 정수로 올림되기 때문 =====
@@ -110,6 +114,78 @@ const state = app.initialState();
     .filter(function (v, i, a) { return a.indexOf(v) === i; });
   assert.strictEqual(sizes.length, 1, '그래프 글씨는 한 가지');
   assert.ok(Math.abs(sizes[0] - sens.CW / 46) < 0.01, '도면과 같은 1/46 규칙');
+}
+
+// ===== 저장타입에 의미 있는 변수만 나온다 =====
+// 파일 수는 야드에만, 1기 용량은 Silo 에만 의미가 있다.
+// 안 맞는 변수를 보여주면 흔들어도 선이 평평해 "고장 났나" 싶어진다.
+{
+  assert.ok(sens.varsFor('yard').indexOf('pileCount') >= 0, '야드에 파일 수');
+  assert.ok(sens.varsFor('silo').indexOf('pileCount') < 0, 'Silo 에 파일 수는 없다');
+  assert.ok(sens.varsFor('silo').indexOf('siloCapacity') >= 0, 'Silo 에 1기 용량');
+  assert.ok(sens.varsFor('shed').indexOf('siloCapacity') < 0, 'Shed 에 Silo 용량은 없다');
+  assert.ok(sens.varsFor('shed').indexOf('shedLa') >= 0, 'Shed 에 적치거리');
+  // 세 타입 공통 인자
+  ['stockDays', 'annualUsage', 'operatingEff'].forEach(function (v) {
+    ['yard', 'shed', 'silo'].forEach(function (t) {
+      assert.ok(sens.varsFor(t).indexOf(v) >= 0, t + ' 에 ' + v + ' 가 있어야 한다');
+    });
+  });
+  // 규모지수는 뺐다 — 면적이 전혀 안 움직여 민감도로서 의미가 없다
+  assert.ok(!sens.VARS.costExponent, '규모지수는 민감도 변수에서 빠져야 한다');
+}
+
+// ===== 새 변수들도 실제로 규모를 움직이는가 =====
+// 흔들어도 아무것도 안 변하는 변수는 민감도에 있을 이유가 없다.
+{
+  const cases = [
+    ['ironOre', 'pileCount'], ['ironOre', 'yardLength'],
+    ['coal', 'siloCapacity']
+  ];
+  cases.forEach(function (cse) {
+    const sw = sens.sweep(state, cse[0], cse[1]);
+    const areas = sw.points.map(function (p) { return p.area; });
+    const spread = Math.max.apply(null, areas) - Math.min.apply(null, areas);
+    assert.ok(spread > 0, cse[1] + ' 을 흔들었는데 면적이 전혀 안 움직인다');
+  });
+  // Shed 는 기본 시나리오에 없으므로 원료 하나를 Shed 로 돌려 본다
+  const st = app.initialState();
+  st.materials.flux.storageType = 'shed';
+  const sw = sens.sweep(st, 'flux', 'shedLa');
+  const areas = sw.points.map(function (p) { return p.area; });
+  assert.ok(Math.max.apply(null, areas) - Math.min.apply(null, areas) > 0,
+    'La 를 흔들었는데 Shed 면적이 안 움직인다');
+}
+
+// ===== 슬라이더가 가리키는 지점 =====
+{
+  const sw = sens.sweep(state, 'ironOre', 'stockDays');
+  // 기준 눈금이 반드시 있어야 슬라이더가 지금 상태에서 출발한다
+  assert.strictEqual(sw.points[sw.baseIndex].isBase, true, '기준 인덱스가 기준점을 가리켜야 한다');
+
+  const mk = sens.markerAt(sw, 0);
+  assert.strictEqual(mk.index, 0);
+  const mkEnd = sens.markerAt(sw, sw.points.length - 1);
+  assert.ok(mkEnd.area.x > mk.area.x, '오른쪽으로 갈수록 마커 x 가 커져야 한다');
+  // 범위를 벗어나도 잘라서 받는다 (슬라이더 값이 어긋나도 터지지 않게)
+  assert.strictEqual(sens.markerAt(sw, 9999).index, sw.points.length - 1);
+  assert.strictEqual(sens.markerAt(sw, -5).index, 0);
+
+  // 마커는 선 위에 붙어야 한다 — 그래프가 그리는 좌표와 같은 식을 써야 한다
+  const svg = sens.chart(sw, '철광석', 'area', 3);
+  const m3 = sens.markerAt(sw, 3);
+  assert.ok(svg.indexOf('id="sens-mark-area" cx="' + m3.area.x + '" cy="' + m3.area.y + '"') >= 0,
+    '그래프의 마커 좌표가 markerAt 와 같아야 한다');
+}
+
+// ===== 슬라이더 요약 =====
+{
+  const sw = sens.sweep(state, 'ironOre', 'stockDays');
+  const html = sens.readout(sw, sw.baseIndex);
+  assert.ok(/기준/.test(html), '기준 지점에는 기준 표시');
+  assert.ok(/열</.test(html), '설비 수량 단위');
+  const other = sens.readout(sw, sw.points.length - 1);
+  assert.ok(/기준 대비/.test(other), '기준 대비 증감이 있어야 한다');
 }
 
 console.log('OK: sensitivity');
