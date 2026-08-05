@@ -469,13 +469,31 @@
   // 단면은 비대칭이다 — 중앙 옹벽에 기대어 능선까지 올라갔다가 개방측으로 흘러내린다.
   //   옹벽면(wallHeight) → 능선(h1, 옹벽에서 Lb) → 개방측 끝(0, 능선에서 La)
   // 이 단면을 셀 길이만큼 밀어내면 실제 적치 형상이 된다.
-  function makeShedPile(o) {
+  function sectionShape(o, raise) {
+    const r = raise || 0;
     const shape = new THREE.Shape();
     shape.moveTo(0, 0);
-    shape.lineTo(0, o.wallHeight);
-    shape.lineTo(o.Lb, o.h1);
+    shape.lineTo(0, o.wallHeight + r);
+    shape.lineTo(o.Lb, o.h1 + r);
     shape.lineTo(o.Lb + o.La, 0);
     shape.closePath();
+    return shape;
+  }
+
+  // 셀 사이 격벽. **사각형이면 SPR 이 지나갈 수 없다** —
+  // 실제 격벽은 원료 단면을 따라 옹벽측이 높고 개방측으로 내려가는 삼각형이라
+  // 붐이 그 위를 넘어 옆 셀로 이동한다. 원료보다 조금만 높게 세운다.
+  function makeShedPartition(o) {
+    const geo = new THREE.ExtrudeGeometry(sectionShape(o, o.raise === undefined ? 1.5 : o.raise),
+      { depth: o.thickness, bevelEnabled: false });
+    geo.rotateY(Math.PI / 2);          // 압출축 Z → X (건물 길이방향)
+    const m = new THREE.Mesh(geo, o.mat);
+    m.castShadow = true; m.receiveShadow = true;
+    return m;
+  }
+
+  function makeShedPile(o) {
+    const shape = sectionShape(o, 0);
     const geo = new THREE.ExtrudeGeometry(shape, { depth: o.len, bevelEnabled: false });
     geo.rotateY(Math.PI / 2);          // 압출축 Z → X (건물 길이방향)
     const m = new THREE.Mesh(geo, o.mat);
@@ -557,6 +575,7 @@
     use: use, col: col,
     makeYardMachine: makeYardMachine, makeTripper: makeTripper, makeSPR: makeSPR,
     makeSiloDischarge: makeSiloDischarge, makeGallery: makeGallery, makeFlow: makeFlow,
+    makeShedPartition: makeShedPartition,
     makeShedPile: makeShedPile,
     collectAnimated: collectAnimated, stepAnimation: stepAnimation
   };

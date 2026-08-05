@@ -154,11 +154,13 @@
           z: wallFace, dir: dir,
           zFar: wallFace + dir * reach       // 개방측 끝
         });
-        partitions.push({ x: x - wt / 2, zCenter: wallFace + dir * reach / 2, depth: reach });
+        partitions.push({ x: x - wt / 2, zCenter: wallFace + dir * reach / 2, depth: reach,
+                          z: wallFace, dir: dir });
         x += len + wt;
       });
       if (list.length) {
-        partitions.push({ x: x - wt / 2, zCenter: wallFace + dir * reach / 2, depth: reach });
+        partitions.push({ x: x - wt / 2, zCenter: wallFace + dir * reach / 2, depth: reach,
+                          z: wallFace, dir: dir });
       }
       // 하부 불출 B/C — 개방측 바깥
       outBelts.push({ bay: bay + 1, z: wallFace + dir * (reach + o.openSideClear * 0.5) });

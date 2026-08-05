@@ -175,7 +175,9 @@
       new THREE.MeshStandardMaterial({ color: col(CONCRETE), roughness: 1 })
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
+    // 지면에는 그림자를 받지 않는다. 60 m 건물의 그림자가 새까만 판때기로 떨어져
+    // 부지에 구멍이 뚫린 것처럼 보인다. 물체 자체의 음영은 그대로 남는다.
+    ground.receiveShadow = false;
     siteGroup.add(ground);
 
     // 띠를 Z 방향으로 쌓는다 (부지 중심이 원점)
@@ -204,7 +206,7 @@
         const apron = new THREE.Mesh(new THREE.PlaneGeometry(b.length, b.width), apronMat);
         apron.rotation.x = -Math.PI / 2;
         apron.position.set(0, 0.02, zc);
-        apron.receiveShadow = true;
+        apron.receiveShadow = false;
         bg.add(apron);
 
         const geo = global.RSD.draw2d.yardPlanGeometry({
@@ -399,9 +401,13 @@
           bg.add(pile);
         });
         SL.partitions.forEach(function (pt) {
-          const part = shade0(new THREE.Mesh(
-            new THREE.BoxGeometry(wt, sec.h1.value + 2, pt.depth), cwallMat));
-          part.position.set(pt.x, (sec.h1.value + 2) / 2, zc + pt.zCenter);
+          const part = E3.makeShedPartition({
+            Lb: Lb, La: La, h1: sec.h1.value, wallHeight: sec.wallHeight.value,
+            thickness: wt, mat: cwallMat
+          });
+          // 파일과 같은 압출이므로 좌표 규칙도 같다 (+z bay 는 뒤집는다)
+          part.position.set(pt.x, 0, zc + pt.z);
+          part.scale.z = -pt.dir;
           bg.add(part);
         });
 
@@ -414,12 +420,15 @@
           const tp = E3.makeTripper({ width: 15, height: 14, mat: steelMat,
             accentMat: accentMat, motorMat: motorMat, oreMat: oreMat,
             dropHeight: 12, twoWay: true });
+          // Tripper 는 자기 구역 안에서만 움직인다 — 2기면 각자 끝에서 중앙까지다.
+          // 구역을 넘나들면 서로 부딪히고, 급광 벨트도 구역별로 갈라져 있다.
+          // 주기를 같게 두고 위상만 뒤집어 두 대가 나란히 안쪽으로 왔다 함께 나간다.
           const zoneW = b.length / she.trippers;
           const cx = -b.length / 2 + zoneW * (i + 0.5);
           tp.position.set(cx, sec.h1.value + 4, zc + SL.wallCenter);
           tp.userData.anim = {
             kind: 'travel', axis: 'x',
-            center: cx, range: zoneW * 0.78, period: 30 + i * 5, phase: i * 0.5
+            center: cx, range: zoneW * 0.9, period: 30, phase: i * 0.5
           };
           bg.add(tp);
         }
@@ -638,8 +647,8 @@
     camera = new THREE.PerspectiveCamera(42, 16 / 9, 1, 8000);
 
     // 조명 — 하늘/지면 반사광 + 태양(그림자)
-    scene.add(new THREE.HemisphereLight(0x9fbada, 0x35322c, 0.34));
-    const sun = new THREE.DirectionalLight(0xffeed2, 1.85);
+    scene.add(new THREE.HemisphereLight(0x9fbada, 0x35322c, 0.62));
+    const sun = new THREE.DirectionalLight(0xffeed2, 1.05);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.bias = -0.0006;
