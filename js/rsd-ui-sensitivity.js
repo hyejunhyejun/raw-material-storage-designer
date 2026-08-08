@@ -90,6 +90,14 @@
       range: function (base) { return withBase(span(10000, 200000, 39, 5000), base); },
       fmt: function (v) { return (v / 10000).toFixed(1) + '만t'; }
     },
+    siloRows: {
+      // 같은 기수라도 몇 줄로 늘어놓느냐에 따라 부지 형상과 면적이 달라진다.
+      // 1열은 길고 좁게, 여러 열은 짧고 넓게 — 부지 형상에 맞춰 고르는 값이다.
+      label: '배치 열 수', unit: '열', applies: ['silo'],
+      path: function () { return 'silo.rows'; },
+      range: function (base) { return withBase(span(1, 6, 6, 1), base); },
+      fmt: function (v) { return Math.round(v) + '열'; }
+    },
     shedLa: {
       label: '개방측 적치거리 (La)', unit: 'm', applies: ['shed'],
       path: function () { return 'shed.La'; },
@@ -151,6 +159,20 @@
     if (e.type === 'yard') return '열';
     if (e.type === 'silo') return '기';
     return '셀';
+  }
+
+  // 기준값 앞뒤의 계단만. 눈금을 촘촘히 잡으면 계단이 20개 넘게 나오는데,
+  // 그걸 다 늘어놓으면 목록이 아니라 벽이 된다. 설계자가 알아야 하는 건
+  // **지금 조건에서 한 발 움직이면 무슨 일이 생기는지**다.
+  function nearSteps(sw, n) {
+    const k = n || 2;
+    const all = steps(sw);
+    if (all.length <= k * 2) return all;
+    const bi = sw.baseIndex;
+    const idx = all.map(function (j) { return { j: j, i: sw.points.indexOf(j) }; });
+    return idx.filter(function (x) { return x.i <= bi; }).slice(-k)
+      .concat(idx.filter(function (x) { return x.i > bi; }).slice(0, k))
+      .map(function (x) { return x.j; });
   }
 
   // 계단이 뛰는 지점 — "여기서 한 열이 더 필요해진다"
@@ -409,7 +431,8 @@
     const idx = (view.idx === null || view.idx === undefined ||
                  view.idx >= sw.points.length) ? sw.baseIndex : view.idx;
     view.idx = idx;
-    const jumps = steps(sw);
+    const allJumps = steps(sw);
+    const jumps = nearSteps(sw, 2);
 
     // 계단 표 — 눈금이 30개가 넘으므로 전부 적으면 읽히지 않는다.
     // **설비 수량이 바뀌는 행과 기준·양 끝만** 남긴다. 그게 곧 의사결정 지점이다.
@@ -458,7 +481,9 @@
         ? c.warnBox(jumps.map(function (j) {
             return fmtInput(sw, j.input) + ' 에서 ' + j.units + ' ' + j.unitLabel +
               ' 로 늘어납니다 (면적 ' + fmt(j.area) + ' m²)';
-          }))
+          }), '기준 전후의 증설 지점' +
+            (allJumps.length > jumps.length
+              ? ' — 이 범위 전체로는 ' + allJumps.length + '곳' : ''))
         : '<p class="dim">이 범위에서는 설비 수량이 변하지 않습니다.</p>') +
       '<div class="dwg-wrap">' + chart(sw, mLabel, 'area', idx) + '</div>' +
       '<div class="dwg-wrap">' + chart(sw, mLabel, 'cost', idx) + '</div>' +
@@ -569,6 +594,7 @@
   const api = {
     VARS: VARS, sweep: sweep, steps: steps, chart: chart,
     varsFor: varsFor, markerAt: markerAt, applySlider: applySlider, readout: readout,
+    nearSteps: nearSteps,
     renderSensitivity: renderSensitivity, handleClick: handleClick,
     restoreTarget: restoreTarget, view: view,
     scenarioSummary: scenarioSummary, compareScenarios: compareScenarios, diff: diff,

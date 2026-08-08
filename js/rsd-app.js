@@ -584,9 +584,14 @@
 
   function boot() {
     if (typeof document === 'undefined') return;
-    const store = createStore(initialState());
     const nav = document.getElementById('tabs');
     const main = document.getElementById('main');
+    // 이 페이지에 툴의 껍데기가 없으면 부팅하지 않는다.
+    // 엔진만 가져다 쓰는 페이지(보고서의 3D·What-if 등)에서도 DOMContentLoaded 는
+    // 똑같이 걸리므로, 여기서 막지 않으면 null.addEventListener 로 터진다.
+    if (!nav || !main) return;
+
+    const store = createStore(initialState());
 
     let view3d = 'bird';
 

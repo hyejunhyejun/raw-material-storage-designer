@@ -126,6 +126,7 @@ body {
 .sheet > summary { cursor: pointer; color: var(--accent); font-size: 14px; margin-top: 12px; }
 
 /* ---------- 경고 ---------- */
+.warn-t { display: block; font-size: 12.5px; margin-bottom: 4px; opacity: .85; }
 .warn { background: rgba(255, 159, 10, .12); border-radius: 12px; padding: 14px 18px; margin: 16px 0; font-size: 13px; }
 .warn ul { margin: 0; padding-left: 18px; }
 .warn li + li { margin-top: 6px; }

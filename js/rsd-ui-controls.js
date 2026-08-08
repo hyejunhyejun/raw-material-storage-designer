@@ -85,10 +85,12 @@
     return '<table class="result-table"><tbody>' + body + '</tbody></table>';
   }
 
-  function warnBox(warnings) {
+  function warnBox(warnings, title) {
     if (!warnings || warnings.length === 0) return '';
     const items = warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('');
-    return '<div class="warn"><ul>' + items + '</ul></div>';
+    return '<div class="warn">' +
+      (title ? '<b class="warn-t">' + esc(title) + '</b>' : '') +
+      '<ul>' + items + '</ul></div>';
   }
 
   function statTile(o) {
