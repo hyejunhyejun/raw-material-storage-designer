@@ -103,6 +103,12 @@
         designCapacity: design,
         area: area,
         tPerM2: tPerM2,
+        // 적치가능율 = 최대 저장용량(운영효율 미반영) ÷ 대상 저장용량.
+        // 기준선은 1 ÷ 운영효율 — 타입마다 다르므로 나란히 비교하려면 함께 봐야 한다.
+        stackRatio: (demand.targetCapacity.value > 0 && sizing)
+          ? sizing.physicalCapacity.value / demand.targetCapacity.value : 0,
+        stackFloor: (eff > 0) ? 1 / eff : 0,
+        physicalCapacity: sizing ? sizing.physicalCapacity.value : 0,
         footprint: fp,
         spec: spec,
         sizing: sizing,

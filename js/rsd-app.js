@@ -82,6 +82,9 @@
         setPath(state, path, getPath(seed, path));
       }
     });
+    // bay 는 중앙 옹벽 좌우 2면까지만 성립한다. 3면 이상은 배치가 겹치므로 막는다.
+    // (예전 세션에서 저장된 값이 3 이상일 수 있어 여기서도 자른다)
+    if (state.shed) state.shed.bays = Math.min(2, Math.max(1, state.shed.bays || 1));
     return state;
   }
 
@@ -384,7 +387,30 @@
         yardRowsTotal += sizing.rows.value;
       }
 
-      out.materials[key] = { material: m, type: type, demand: demand, sizing: sizing, area: area };
+      // 적치가능율 — 설비를 풀로 채우면 대상 저장용량의 몇 배가 들어가는가.
+      // 분자는 운영효율을 반영하지 않은 "물리 최대치"다. 설비는 대상량 ÷ 운영효율
+      // 만큼 크게 짓기 때문에, 아무리 딱 맞게 지어도 이 값은 1/운영효율 밑으로
+      // 내려가지 않는다. 그래서 기준선(= 1/운영효율)과 함께 봐야 뜻이 통한다.
+      let physical = sizing ? sizing.physicalCapacity.value : 0;
+      if (type === 'shed' && useShared && sizing && sizing.byMaterial[key]) {
+        physical = sizing.byMaterial[key].capacity;   // 공용 Shed 는 그 원료 몫만
+      }
+      const target = demand.targetCapacity.value;
+      const ratio  = (target > 0) ? physical / target : 0;
+      const stackRatio = core.res(ratio, '배', '적치가능율 = 최대 저장용량 ÷ 대상 저장용량',
+        (target > 0)
+          ? `= ${core.fmt(Math.round(physical))} t ÷ ${core.fmt(Math.round(target))} t = ` +
+            `${ratio.toFixed(2)}배 (${(ratio * 100).toFixed(0)} %)`
+          : '= — (대상 저장용량 0)',
+        '[산출] 분자는 운영효율 미반영 물리 최대치. 기준선 = 1 ÷ 운영효율');
+
+      out.materials[key] = { material: m, type: type, demand: demand, sizing: sizing, area: area, eff: eff,
+        stackRatio: stackRatio, stackFloor: (eff > 0 ? 1 / eff : 0),
+        // 공용 Shed 는 sizing 이 건물 전체라 원료별 값과 어긋난다 — 여기 실어 둔다
+        physicalCapacity: core.res(physical, 't',
+          '최대 저장용량 = 설비를 가득 채웠을 때 담기는 양 (운영효율 미반영)',
+          `= ${core.fmt(Math.round(physical))}`,
+          sizing ? sizing.physicalCapacity.source : '') };
       out.totals.area += area;
     }
 

@@ -175,6 +175,32 @@
       .map(function (x) { return x.j; });
   }
 
+  // 지금 구성이 유지되는 구간.
+  //
+  // 야드는 열 수, Silo 는 기수가 정수라 경계를 넘기 전까지 면적이 꿈쩍도 않는다.
+  // 값을 바꿨는데 화면이 침묵하면 "반영이 안 되나?" 로 읽힌다 — 실제로는
+  // 설계 대상용량도 최종 재고일수도 움직이는데 가장 눈에 띄는 두 숫자만 고정이다.
+  // 그래서 **어디까지 버티는지**를 화면이 스스로 말하게 한다.
+  function holdRange(state, materialKey, varKey) {
+    const sw = sweep(state, materialKey, varKey);
+    if (!sw || !sw.points.length) return null;
+    const bi = sw.baseIndex, n = sw.points.length;
+    const base = sw.points[bi].units;
+    let lo = bi, hi = bi;
+    while (lo > 0 && sw.points[lo - 1].units === base) lo--;
+    while (hi < n - 1 && sw.points[hi + 1].units === base) hi++;
+    // 구간이 훑은 범위 전체면 경계를 못 본 것이다 — 그때는 알려줄 말이 없다
+    if (lo === 0 && hi === n - 1) return null;
+    return {
+      varKey: varKey, label: VARS[varKey].label,
+      units: base, unitLabel: sw.points[bi].unitLabel,
+      from: sw.points[lo].input, to: sw.points[hi].input,
+      fromText: fmtInput(sw, sw.points[lo].input),
+      toText: fmtInput(sw, sw.points[hi].input),
+      openLow: lo === 0, openHigh: hi === n - 1
+    };
+  }
+
   // 계단이 뛰는 지점 — "여기서 한 열이 더 필요해진다"
   function steps(sw) {
     const out = [];
@@ -594,6 +620,7 @@
   const api = {
     VARS: VARS, sweep: sweep, steps: steps, chart: chart,
     varsFor: varsFor, markerAt: markerAt, applySlider: applySlider, readout: readout,
+    holdRange: holdRange,
     nearSteps: nearSteps,
     renderSensitivity: renderSensitivity, handleClick: handleClick,
     restoreTarget: restoreTarget, view: view,

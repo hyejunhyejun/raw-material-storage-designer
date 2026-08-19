@@ -105,6 +105,7 @@ body {
 .tile-label { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
 .tile-value { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .tile-unit { font-size: 14px; font-weight: 400; color: var(--text-dim); margin-left: 5px; }
+.tile-wide { grid-column: span 2; }
 .tile-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 
 /* ---------- 계산근거 펼침 ---------- */
@@ -124,6 +125,14 @@ body {
 .trace-subst { color: var(--text-dim); margin-top: 4px; font-variant-numeric: tabular-nums; }
 .trace-src { color: var(--text-dim); margin-top: 8px; font-size: 11px; opacity: .8; }
 .sheet > summary { cursor: pointer; color: var(--accent); font-size: 14px; margin-top: 12px; }
+
+/* ---------- 계단 구간 안내 ---------- */
+.hold { background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 16px; margin: 16px 0; font-size: 13px; }
+.hold-t { display: block; margin-bottom: 6px; }
+.hold ul { margin: 0 0 6px; padding-left: 18px; }
+.hold li { margin: 2px 0; font-variant-numeric: tabular-nums; }
+.hold p { margin: 0; font-size: 12px; line-height: 1.5; }
 
 /* ---------- 경고 ---------- */
 .warn-t { display: block; font-size: 12.5px; margin-bottom: 4px; opacity: .85; }
@@ -244,7 +253,7 @@ body.dragging-band { user-select: none; cursor: ns-resize; }
 .cmp-list { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; font-size: 12px; }
 .cmp-list dt { color: var(--text-dim); }
 .cmp-list dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
-.cmp-note { font-size: 12px; color: var(--text-dim); margin: 0; }
+.cmp-note { display: block; font-size: 11px; color: var(--text-dim); margin: 2px 0 0; }
 
 /* ---------- 3D 부지 ---------- */
 .card-3d { padding: 20px; }
@@ -301,8 +310,11 @@ body.dragging .dwg { pointer-events: none; }
 }
 .badge.ok { background: rgba(48, 209, 88, 0.15); color: #1a7f37; }
 .badge.ng { background: rgba(255, 69, 58, 0.15); color: #c9252d; }
+.badge.mid { background: rgba(255, 159, 10, 0.16); color: #9a5b00; }
+.badge.sm { padding: 2px 8px; font-size: 10px; vertical-align: 2px; }
 :root[data-theme="dark"] .badge.ok { color: #30d158; }
 :root[data-theme="dark"] .badge.ng { color: #ff453a; }
+:root[data-theme="dark"] .badge.mid { color: #ff9f0a; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { padding: 11px 12px; text-align: left; border-bottom: 1px solid var(--line); }
 th { color: var(--text-dim); font-weight: 500; font-size: 12px; }

@@ -9,6 +9,20 @@
   const EQ  = req ? require('./rsd-equip.js')         : global.RSD.equip;
   const BD  = req ? require('./rsd-bands.js')         : global.RSD.bands;
   const hlp = req ? require('./rsd-draw2d-help.js')   : global.RSD.draw2dHelp;
+  // 민감도 모듈은 이 파일보다 뒤에 로드되므로 지연 해석한다
+  function SENS() { return req ? require('./rsd-ui-sensitivity.js') : global.RSD.sensitivity; }
+
+  // 지금 구성이 유지되는 구간. 야드·Silo 는 정수 올림이라 경계 전까지
+  // 설비 수량이 꿈쩍하지 않는다 — 화면이 그 이유를 스스로 말하게 한다.
+  function holdBox(state, entry) {
+    try {
+      const S = SENS();
+      return c.holdNote([
+        S.holdRange(state, entry.material.key, 'operatingEff'),
+        S.holdRange(state, entry.material.key, 'stockDays')
+      ]);
+    } catch (e) { return ''; }
+  }
 
   // ---------- ④ Shed ----------
   function renderShedInputs(state, result) {
@@ -31,7 +45,7 @@
       c.numberField({ path: 'shed.La', label: '개방측 적치거리 (La)', value: s.La, unit: 'm', step: 1, min: 1 }) +
       c.numberField({ path: 'shed.Lb', label: '옹벽측 적치거리 (Lb)', value: s.Lb, unit: 'm', step: 0.5, min: 0 }) +
       c.numberField({ path: 'shed.bottomSlope', label: '하부 경사각', value: s.bottomSlope, unit: '°', step: 0.1, min: 0 }) +
-      c.numberField({ path: 'shed.bays', label: 'bay 수', value: s.bays, unit: '열', step: 1, min: 1, max: 20 }) +
+      c.numberField({ path: 'shed.bays', label: 'bay 수', value: s.bays, unit: '열', step: 1, min: 1, max: 2 }) +
       c.selectField({ path: 'shed.buildingMode', label: '건물 구성', value: s.buildingMode,
         options: [{ value: 'separate', label: '원료별로 따로 짓기' },
                   { value: 'shared',   label: '한 동에 모아 짓기 (공용 Shed)' }] }) +
@@ -131,6 +145,8 @@
       const need = result.materials[k].demand.designCapacity.value;
       const share = totalLen > 0 ? e.length / totalLen : 0;
       const ok = e.capacity >= need - 1e-6;
+      const tgt = result.materials[k].demand.targetCapacity.value;
+      const sr = (tgt > 0) ? e.capacity / tgt : 0;
       return '<tr><td><span class="swatch" style="background:' + c.esc(m.color) + '"></span> ' +
         c.esc(m.label) + '</td>' +
         '<td class="n">' + m.repose + '°</td>' +
@@ -141,6 +157,8 @@
         '<td class="n">' + c.num(Math.round(need)) + '</td>' +
         '<td class="n">' + c.num(Math.round(e.capacity)) +
         (ok ? '' : ' <span class="cell-short">부족</span>') + '</td>' +
+        // 적치가능율 = 확보(운영효율 미반영) ÷ 대상 저장용량. 계산식은 표 아래 각주에 적는다.
+        '<td class="n">' + Math.round(sr * 100) + ' %</td>' +
         '<td class="n">' + (share * 100).toFixed(1) + ' %</td></tr>';
     }).join('');
 
@@ -166,8 +184,12 @@
       '<table class="sheet-table"><thead><tr>' +
       '<th>원료</th><th class="n">안식각</th><th class="n">비중</th>' +
       '<th class="n">단위길이 용량 (t/m)</th><th class="n">셀 수</th><th class="n">적치길이 (m)</th>' +
-      '<th class="n">필요 (t)</th><th class="n">확보 (t)</th><th class="n">면적 배분</th>' +
+      '<th class="n">필요 (t)</th><th class="n">확보 (t)</th>' +
+      '<th class="n">적치가능율</th><th class="n">면적 배분</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<p class="dim">적치가능율 = 확보 ÷ 대상 저장용량 (운영효율 미반영). 기준은 ' +
+      '1 ÷ 운영효율 = ' + Math.round(1 / state.shed.operatingEff * 100) + ' % 이며, ' +
+      '이보다 클수록 여유가 있다는 뜻입니다.</p>' +
       '<div class="dwg-wrap"><h4>단면도</h4>' +
       ds.drawShedSection({
         La: state.shed.La, Lb: state.shed.Lb,
@@ -229,9 +251,11 @@
         c.statTile({ label: '건물 치수', value: Math.round(s.length.value), unit: 'm',
           sub: '× ' + Math.round(s.width.value) + ' m × ' + state.shed.totalHeight + ' m' }) +
         c.statTile({ label: '점유면적', value: s.area.value, unit: 'm²' }) +
+        c.stackTile(e) +
         '</div>' +
         '<p class="dim">적치 Tripper ' + she.trippers + '기 (중앙 옹벽 상부) · ' +
         '불출 Semi Portal Reclaimer ' + she.sprTotal + '기 (면당 ' + she.sprPerBay + '기)</p>' +
+        holdBox(state, e) +
         c.warnBox(s.warnings) +
         '<div class="dwg-wrap"><h4>단면도</h4>' +
         ds.drawShedSection({
@@ -365,9 +389,11 @@
         c.statTile({ label: '배치', value: Math.round(s.bandLength.value), unit: 'm',
           sub: '× ' + Math.round(s.bandWidth.value) + ' m · ' + state.silo.rows + '열' }) +
         c.statTile({ label: '점유면적', value: s.area.value, unit: 'm²' }) +
+        c.stackTile(e) +
         '</div>' +
         '<p class="dim">적치 Tripper ' + se.trippers + '기 (상부 주행) · ' +
         '불출 RDM ' + se.rdmTotal + '기 (Silo 1기당 1기) → 하부 B/C</p>' +
+        holdBox(state, e) +
         c.warnBox(s.warnings) +
         c.warnBox(EQ.siloEquipment({ trippers: state.silo.trippers,
           count: s.count.value, rows: state.silo.rows }).warnings) +
@@ -563,6 +589,15 @@
             '<dt>운영효율</dt><dd>' + (d.eff * 100).toFixed(0) + ' %</dd>' +
             '<dt>대상 저장용량</dt><dd>' + c.num(Math.round(d.targetCapacity)) + ' t</dd>' +
             '<dt>설계 대상용량</dt><dd>' + c.num(Math.round(d.designCapacity)) + ' t</dd>' +
+            '<dt>최대 저장용량</dt><dd>' + c.num(Math.round(d.physicalCapacity)) + ' t' +
+            '<span class="cmp-note">운영효율 미반영 · 가득 채웠을 때</span></dd>' +
+            // 적치가능율 — 타입마다 기준선(1÷운영효율)이 다르므로 계산식을 붙여 둔다.
+            // 붙이지 않으면 Silo 170% 와 야드 133% 가 같은 뜻이라는 걸 알 수 없다.
+            '<dt>적치가능율</dt><dd>' + Math.round(d.stackRatio * 100) + ' %' +
+            '<span class="cmp-note">' + c.num(Math.round(d.physicalCapacity)) + ' ÷ ' +
+            c.num(Math.round(d.targetCapacity)) + ' · 기준 ' + Math.round(d.stackFloor * 100) +
+            '% (= 1 ÷ 운영효율) 의 ' + (d.stackFloor > 0 ? (d.stackRatio / d.stackFloor).toFixed(1) : '—') +
+            '배</span></dd>' +
             '<dt>설비 1' + c.esc(d.cost.unitCount.unit) + ' 투자비</dt><dd>' +
             c.num(Math.round(d.cost.unitCost.value)) + ' 억원' +
             '<span class="dim"> (규모지수 ' + d.cost.scaleFactor.value.toFixed(3) + ')</span></dd>' +

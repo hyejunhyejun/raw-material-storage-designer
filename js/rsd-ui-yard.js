@@ -3,6 +3,8 @@
   const c    = req ? require('./rsd-ui-controls.js') : global.RSD.controls;
   const d2   = req ? require('./rsd-draw2d.js')      : global.RSD.draw2d;
   const hlp  = req ? require('./rsd-draw2d-help.js') : global.RSD.draw2dHelp;
+  // 민감도 모듈은 이 파일보다 뒤에 로드되므로 지연 해석한다
+  function SENS() { return req ? require('./rsd-ui-sensitivity.js') : global.RSD.sensitivity; }
 
   function renderInputs(state) {
     const y = state.yard;
@@ -14,7 +16,7 @@
       c.numberField({ path: 'yard.yardWidth',    label: '야드 폭 (D)',     value: y.yardWidth,    unit: 'm', step: 1,  min: 0 }) +
       c.numberField({ path: 'yard.roadWidth',    label: '차량 통행로 (E)', value: y.roadWidth,    unit: 'm', step: 1,  min: 0,
         hint: '양측 합계 (한쪽 ' + (y.roadWidth / 2) + ' m)' }) +
-      c.numberField({ path: 'yard.operatingEff', label: '적치효율 (P)',    value: y.operatingEff, unit: '-', step: 0.05, min: 0.01, hint: '0.75 = 75%' }) +
+      c.numberField({ path: 'yard.operatingEff', label: '운영효율 (적치효율 P)', value: y.operatingEff, unit: '-', step: 0.05, min: 0.01, hint: '0.75 = 75% · ① 탭의 운영효율과 같은 값' }) +
       c.numberField({ path: 'yard.srBandWidth',  label: '이동기기 및 Belt Conveyor 면적 폭', value: y.srBandWidth,  unit: 'm', step: 1,  min: 0 }) +
       '</div>' +
       '<p class="dim">파일 수 (I) · 파일간 간격 (J) 은 원료마다 다르므로 ' +
@@ -75,7 +77,11 @@
       c.statTile({ label: '최종 적치가능 용량', value: s.totalCapacity.value, unit: 't' }) +
       c.statTile({ label: '최종 재고일수', value: s.achievedStockDays.value, unit: '일' }) +
       c.statTile({ label: '점유면적', value: entry.area, unit: 'm²', sub: '이동기기 면적 포함' }) +
+      // 적치가능율 — 계단 어디쯤 서 있는지. 기준선에 가까우면 아슬아슬하고,
+      // 크면 한 열이 통으로 남아돈다는 뜻이다.
+      c.stackTile(entry) +
       '</div>' +
+      holdBox(state, entry) +
       c.warnBox(s.warnings) +
       (s.rows.value === 0
         ? '<p class="dim">저장할 물량이 없어 야드가 필요하지 않습니다 ' +
@@ -88,6 +94,17 @@
       }) + '</div>' +
       '<details class="sheet"><summary>계산서 전체 보기</summary>' + sheet + '</details>' +
       '</section>';
+  }
+
+  // 지금 구성이 유지되는 구간 — 운영효율·재고일수 두 축으로
+  function holdBox(state, entry) {
+    try {
+      const S = SENS();
+      return c.holdNote([
+        S.holdRange(state, entry.material.key, 'operatingEff'),
+        S.holdRange(state, entry.material.key, 'stockDays')
+      ]);
+    } catch (e) { return ''; }
   }
 
   function renderResult(state, result) {

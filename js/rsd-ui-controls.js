@@ -93,6 +93,22 @@
       '<ul>' + items + '</ul></div>';
   }
 
+  // 계단 구간 안내 — "값을 바꿨는데 왜 안 변하지?" 에 화면이 스스로 답한다.
+  // 야드·Silo 는 정수 올림이라 경계 전까지 설비 수량이 꿈쩍하지 않는다.
+  function holdNote(ranges) {
+    const live = (ranges || []).filter(function (r) { return r; });
+    if (!live.length) return '';
+    const items = live.map(function (r) {
+      return '<li><b>' + esc(r.label) + '</b> ' + esc(r.fromText) + ' ~ ' + esc(r.toText) +
+        (r.openHigh ? ' <span class="dim">(훑은 범위 끝)</span>' : '') + '</li>';
+    }).join('');
+    return '<div class="hold"><b class="hold-t">지금 구성(' +
+      esc(live[0].units + ' ' + live[0].unitLabel) + ')이 유지되는 구간</b>' +
+      '<ul>' + items + '</ul>' +
+      '<p class="dim">이 안에서는 값을 바꿔도 설비 수량과 면적이 그대로입니다 — ' +
+      '정수로 올림되기 때문입니다. 설계 대상용량과 최종 재고일수는 계속 움직입니다.</p></div>';
+  }
+
   function statTile(o) {
     const sub = o.sub ? '<div class="tile-sub">' + esc(o.sub) + '</div>' : '';
     return '<div class="tile">' +
@@ -102,10 +118,30 @@
       sub + '</div>';
   }
 
+  // 적치가능율 타일 — 숫자만으로는 판단이 안 되므로 계산식과 기준선을 함께 적는다.
+  // 기준선 = 1 ÷ 운영효율. 설비는 "대상량 ÷ 운영효율" 만큼 크게 짓기 때문에,
+  // 아무리 딱 맞게 지어도 적치가능율은 이 값 밑으로 내려가지 않는다.
+  function stackTile(entry) {
+    const r = entry.stackRatio, floor = entry.stackFloor || 0;
+    if (!r || !(r.value > 0)) return '';
+    const over = (floor > 0) ? r.value / floor : 0;
+    const band = (over >= 2) ? ['과다', 'ng'] : (over >= 1.2) ? ['여유', 'mid'] : ['적정', 'ok'];
+    return '<div class="tile tile-wide">' +
+      '<div class="tile-label">적치가능율 <span class="badge sm ' + band[1] + '">' +
+        band[0] + '</span></div>' +
+      '<div class="tile-value">' + Math.round(r.value * 100) +
+        '<span class="tile-unit">%</span></div>' +
+      '<div class="tile-sub">' + esc(r.formula) + '<br>' + esc(r.substitution) + '</div>' +
+      '<div class="tile-sub">기준 ' + Math.round(floor * 100) + '% (= 1 ÷ 운영효율) 의 ' +
+        over.toFixed(1) + '배 — 설비를 가득 채웠을 때 담기는 양</div>' +
+      '</div>';
+  }
+
   const api = {
+    holdNote: holdNote,
     esc: esc, num: num, numberField: numberField, selectField: selectField,
     grouped: grouped, parseNum: parseNum,
-    traceCell: traceCell, resultTable: resultTable, warnBox: warnBox, statTile: statTile
+    traceCell: traceCell, resultTable: resultTable, warnBox: warnBox, statTile: statTile, stackTile: stackTile
   };
   global.RSD = global.RSD || {};
   global.RSD.controls = api;

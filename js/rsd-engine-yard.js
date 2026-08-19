@@ -131,6 +131,8 @@
         input.designCapacity
           ? `= ceil(${fmt(input.designCapacity)} ÷ ${fmt(O)}) = ${rows}`
           : '= 1 (설계 대상용량 미입력)', SRC),
+      physicalCapacity: res(O * rows, 't', '최대 저장용량 = 1열 최대 적치량 O × 열 수 (운영효율 미반영)',
+        `= ${fmt(O)} × ${rows} = ${fmt(O * rows)}`, SRC),
       totalCapacity: res(totalCapacity, 't', '최종 적치가능 용량 = 1열 유효적치량 × 열 수',
         `= ${fmt(Q)} × ${rows} = ${fmt(totalCapacity)}`, SRC),
       achievedStockDays: res(achievedStockDays, 'day',

@@ -126,6 +126,19 @@
       count = Math.ceil(countExact);
     }
 
+    // 기수는 통으로만 늘어난다 — 1기가 5만 t 이면 5.1만 t 이 필요해도 2기다.
+    // 야드와 같은 규칙으로 과잉을 알려 준다. 숫자만 보면 '이만큼 필요하다' 로 읽힌다.
+    if (count > 0 && input.designCapacity > 0 && input.capacity > 0) {
+      const over = (count * input.capacity) / input.designCapacity;
+      if (over >= 1.5) {
+        warnings.push(
+          `확보 용량이 필요량의 ${over.toFixed(1)}배입니다 ` +
+          `(${count}기 × ${fmt(input.capacity)} t vs 필요 ${fmt(Math.round(input.designCapacity))} t). ` +
+          `기수는 통으로만 늘어나므로 1기 용량을 줄이면 면적을 아낄 수 있습니다`
+        );
+      }
+    }
+
     const rows = input.rows || 1;
     const d = dimsFor(count, rows, pitch, input.footprintWidth, input.corridorWidth);
     const split = rowSplit(count, rows);
@@ -183,6 +196,8 @@
         `= ${input.footprintWidth} + (${rows} − 1) × ${pitch} + ${input.corridorWidth || 0} = ${d.bandWidth}`, SRC),
       area: res(area, 'm²', 'Silo 부지면적 = 배치 길이 × 배치 폭',
         `= ${fmt(d.bandLength)} × ${fmt(d.bandWidth)} = ${fmt(area)}`, SRC),
+      physicalCapacity: res(count * input.capacity, 't', '최대 저장용량 = 설계 기수 × 1기 용량 (운영효율 미반영)',
+        `= ${count} × ${fmt(input.capacity)} = ${fmt(count * input.capacity)}`, SRC),
       totalCapacity: res(totalCapacity, 't', '유효 총 저장용량 = 설계 기수 × 1기 용량 × 운영효율',
         `= ${count} × ${fmt(input.capacity)} × ${eff} = ${fmt(totalCapacity)}`, SRC),
       achievedStockDays: res(achievedStockDays, 'day',

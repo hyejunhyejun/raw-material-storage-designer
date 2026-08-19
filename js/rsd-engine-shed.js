@@ -192,6 +192,8 @@
         `= ${fmt(maxBayStackLength)}`, SRC_DIM),
       totalCapacity: res(totalCapacity, 't', '총 저장용량 = Σ (셀 길이 × 단위길이 용량)',
         `= ${fmt(totalCapacity)}`, SRC),
+      physicalCapacity: res(totalCapacity, 't', '최대 저장용량 = 총 저장용량 (운영효율 미반영)',
+        `= ${fmt(totalCapacity)}`, SRC),
       effectiveCapacity: res(effectiveCapacity, 't', '유효 저장용량 = 총 저장용량 × 운영효율',
         `= ${fmt(totalCapacity)} × ${eff} = ${fmt(effectiveCapacity)}`, SRC),
       length: res(length, 'm',
