@@ -116,6 +116,7 @@
     }
     return {
       activeTab: 'material',
+      showCost: false,           // ⑤ 타입 비교의 투자비 항목 표시 여부
       operatingDays: D.operatingDays,
       materials: materials,
       yard: D.yard,
@@ -800,6 +801,8 @@
 
     // 입력 변경 — 이벤트 위임. change 시점에만 반영해 타이핑 중 리렌더로 포커스를 잃지 않는다.
     main.addEventListener('change', function (e) {
+      const ct = e.target.closest('[data-cost-toggle]');
+      if (ct) { store.set('showCost', ct.checked); return; }
       const use = e.target.closest('[data-use]');
       if (use) {
         store.set('materials.' + use.getAttribute('data-use') + '.enabled', use.checked);

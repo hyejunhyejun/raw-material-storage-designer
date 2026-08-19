@@ -51,17 +51,25 @@ assert.ok(core.VERSION.length > 0, 'VERSION은 비어있지 않아야 한다');
 
 // ===== 기준 투자비 0 은 '싸다' 가 아니라 '안 넣었다' =====
 {
+  // 투자비 항목은 체크박스를 켰을 때만 나온다 — 경고도 그 안에 있다
   const s = app.initialState();
+  s.showCost = true;
   const r = app.recompute(s);
   const zeroYard = uiFac.renderCompare(s, r, 'coal');
   assert.ok(/항상 최소 투자비로 표시/.test(zeroYard),
     '기준 투자비가 0 인 타입이 있으면 그 사실을 알려야 한다');
 
   const s2 = app.initialState();
+  s2.showCost = true;
   s2.cost.yard.baseCost = 50;
   const filled = uiFac.renderCompare(s2, app.recompute(s2), 'coal');
   assert.ok(!/항상 최소 투자비로 표시/.test(filled),
     '전부 채우면 경고가 사라져야 한다');
+
+  // 기본값에서는 투자비 항목이 아예 나오지 않는다
+  const off = uiFac.renderCompare(app.initialState(), r, 'coal');
+  assert.ok(/cmp-nocost/.test(off), '투자비를 끄면 패널에 cmp-nocost 가 붙는다');
+  assert.ok(!/기준 투자비/.test(off), '투자비를 끄면 투자비 가정 입력도 나오지 않는다');
 }
 
 console.log('OK: smoke');

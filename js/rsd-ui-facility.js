@@ -559,7 +559,7 @@
       return '<div class="cmp-card' + (d.feasible ? '' : ' cmp-na') + (isBest ? ' cmp-best' : '') + '">' +
         '<div class="cmp-head">' + c.esc(d.label) +
         (isBest ? '<span class="cmp-tag">최소 면적</span>' : '') +
-        (isCheap ? '<span class="cmp-tag cmp-tag-cost">최소 투자비</span>' : '') + '</div>' +
+        (isCheap ? '<span class="cmp-tag cmp-tag-cost cost-only">최소 투자비</span>' : '') + '</div>' +
         (d.feasible
           ? '<div class="cmp-area">' + c.num(Math.round(d.area)) + '<span class="tile-unit">m²</span></div>' +
             (d.vsYardPct === null ? '' :
@@ -575,7 +575,7 @@
             '<span class="cmp-dens-lbl">면적당 저장량</span></div>' +
             // 투자비 — 면적만으로는 결론이 안 난다. Silo 는 면적이 가장 작지만
             // 톤당 투자비는 가장 비싸다. 두 축을 나란히 놔야 판단이 된다.
-            '<div class="cmp-cost">' + c.num(Math.round(d.cost.total.value)) +
+            '<div class="cmp-cost cost-only">' + c.num(Math.round(d.cost.total.value)) +
             '<span class="tile-unit">억원</span>' +
             (maxCost > 0
               ? '<div class="cmp-bar cmp-bar-cost"><span style="width:' +
@@ -598,20 +598,26 @@
             c.num(Math.round(d.targetCapacity)) + ' · 기준 ' + Math.round(d.stackFloor * 100) +
             '% (= 1 ÷ 운영효율) 의 ' + (d.stackFloor > 0 ? (d.stackRatio / d.stackFloor).toFixed(1) : '—') +
             '배</span></dd>' +
-            '<dt>설비 1' + c.esc(d.cost.unitCount.unit) + ' 투자비</dt><dd>' +
-            c.num(Math.round(d.cost.unitCost.value)) + ' 억원' +
+            '<dt class="cost-only">설비 1' + c.esc(d.cost.unitCount.unit) + ' 투자비</dt>' +
+            '<dd class="cost-only">' + c.num(Math.round(d.cost.unitCost.value)) + ' 억원' +
             '<span class="dim"> (규모지수 ' + d.cost.scaleFactor.value.toFixed(3) + ')</span></dd>' +
             '</dl>'
           : '<p class="cmp-note">' + c.esc(d.note) + '</p>') +
         '</div>';
     }).join('');
 
-    return '<div class="panel"><h3>저장타입 비교</h3>' +
-      '<p class="dim">같은 원료·같은 재고일수를 세 타입으로 했을 때의 소요 면적과 투자비입니다. ' +
+    // 투자비는 기준 단가가 가정값이라 늘 보일 것이 아니다 — 켤 때만 나온다.
+    const showCost = !!state.showCost;
+    return '<div class="panel' + (showCost ? '' : ' cmp-nocost') + '">' +
+      '<h3 class="cmp-title">저장타입 비교' +
+      '<label class="use-toggle cost-sw"><input type="checkbox" data-cost-toggle' +
+      (showCost ? ' checked' : '') + '><span>투자비 함께 보기</span></label></h3>' +
+      '<p class="dim">같은 원료·같은 재고일수를 세 타입으로 했을 때의 소요 면적' +
+      (showCost ? '과 투자비' : '') + '입니다. ' +
       '대상 저장용량은 같지만 운영효율이 달라(야드·Shed 75 %, Silo 60 %) 설계 대상용량이 달라집니다.</p>' +
       '<div class="view-btns cmp-picker">' + picker + '</div>' +
       '<div class="cmp-grid">' + cards + '</div></div>' +
-      renderCostInputs(state);
+      (showCost ? renderCostInputs(state) : '');
   }
 
   // 기준 투자비 0 은 '싸다' 가 아니라 '안 넣었다' 다. 그런데 화면에는
